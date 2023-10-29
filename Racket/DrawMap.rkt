@@ -15,21 +15,18 @@
   (define image (read-bitmap image-path))
   (send dc draw-bitmap image x y))
 
-(define (draw-tile-map2 canvas)
-  (define dc (send canvas get-dc))
-  (for ([x (in-range MAP-WIDTH)])
-    (for ([y (in-range MAP-HEIGHT)])
-      (let ([drawable-tile (get-drawing-data world-map x y)])
-        (draw-tile dc (car drawable-tile)
-                      (cdr drawable-tile ))))))
-             
+
+
+
+;Need to change this so we don't need to search teh map twice with get-drawing data and get-tile-noise-data
 (define (draw-tile-map canvas)
   (define dc (send canvas get-dc))
   (for ([x (in-range MAP-WIDTH)])
     (for ([y (in-range MAP-HEIGHT)])
-      (let ([drawable-tile (get-drawing-data world-map x y)])
-        (draw-tile-png dc (car drawable-tile)
-                      (cdr drawable-tile ) "forestgrass1.png")))))
+      (let ([tile (get-tile world-map x y)])
+         (draw-tile-png dc (hash-ref tile 'tile-width)
+                      (hash-ref tile 'tile-height ) (get-noise-png(hash-ref tile 'noise)))))))       
+        
 
 (define frame (new frame%
                   [label "Tile Map Example"]
