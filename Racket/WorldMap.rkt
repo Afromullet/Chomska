@@ -15,7 +15,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (get-seed)
-  (current-seconds))
+  (current-inexact-milliseconds))
+
 
 ;We use Noise composition. The final noise source equals the sum of:
 ;amplitude_1 * noise(octave_1 * nx, octave_1 * ny) +
