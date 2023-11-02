@@ -1,1 +1,0 @@
-F(a):F(lineWidth=5,a=5)+F(lineWidth=10,a=5)

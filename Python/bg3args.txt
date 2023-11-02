@@ -1,0 +1,1 @@
+F(a):F(lineWidth=5)+F(lineWidth=10)+(angle=30)FFF

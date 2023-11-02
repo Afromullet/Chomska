@@ -1,0 +1,14 @@
+(define (draw-image dc x y image-path)
+  (send dc draw-bitmap (make-object image-snip% image-path) x y))
+
+(define frame (new frame% [label "Image Drawing Example"]
+                         [width 400]
+                         [height 300]))
+
+(define canvas (new canvas% [parent frame]
+                           [paint-callback
+                            (lambda (canvas dc)
+                              ; Draw the image at coordinates (x, y)
+                              (draw-image dc 100 100 "path-to-your-image.png"))]))
+
+(send frame show #t)

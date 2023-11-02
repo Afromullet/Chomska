@@ -1,0 +1,19 @@
+#lang racket/gui
+
+(define WIDTH 5)
+(define HEIGHT 5)
+
+
+
+(define grid-size 5) ; Define the size of the grid
+(define world-map '()) ; Initialize an empty grid
+
+; Creates a map where each tile is a hash table containing the coordinates.
+(for ([x-cord (in-range WIDTH)])
+  (define row '())
+  (for ([y-cord (in-range HEIGHT)])
+    (set! row (append row (list (hash 'x x-cord 'y y-cord)))))
+  (set! world-map (append world-map (list row))))
+
+(define (get-tile grid x y)
+  (list-ref (list-ref grid x) y))
