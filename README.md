@@ -1,2 +1,2 @@
 # Chomska
-Map Generation using Formal Grammars
+Experimenting with different kinds of map generation algorithms. 
