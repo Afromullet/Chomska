@@ -14,17 +14,12 @@
 (define (get-seed)
   (current-inexact-milliseconds))
 
-
-
-
 (define (normalize-sample value min max)
   (/ (- value min) (- max min)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;                                Noise Composition                                              ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
 
 
 ;We use Noise composition. The final noise source equals the sum of:
@@ -53,6 +48,11 @@
     (create-noise-composition-params amps octs)))
 
 
+(struct noise (function))
+
+
+(define (noise-at noise x y)
+  (noise-function noise) x y)
 
 ;Composes the noise by adding several noise sources together using octaves and amplitudes.
 ;Adds an offset through a seed so we don't get the same valeu every time. 
@@ -67,12 +67,15 @@
     (for/list ([amp (noise-composition-params-amplitudes source)]
                [oct (noise-composition-params-octaves source)])
       (generate-octave-noise amp oct (+ x-cord (get-seed)) (+ y-cord (get-seed)))))
-  (normalize-composition-noise (foldl + 0 noise-values) (noise-composition-params-total-amplitude source)))
+
+  
+  (define normalized-noise (normalize-composition-noise (foldl + 0 noise-values) (noise-composition-params-total-amplitude source)))
 
 
+  
+normalized-noise)
 
-
-;normalizes the noise so that we have values between 0 and 1
+;normalizes the noise so that we have values between 0 and 1 using the sum of the amplitudes
 (define (normalize-composition-noise noise-value total-amplitude)
   (/ noise-value total-amplitude))
 
@@ -86,7 +89,26 @@
   (for/list ([i (in-range num)])
     (+ start (* (/ i (- num 1.0)) (- stop start)))))
 
-;Creates a sine modulated signal
+
+
+
+  (define width-sample-space (linspace 0  100 MAP-WIDTH))
+  (define height-sample-space (linspace 0 100  MAP-HEIGHT))
+
+
+(define (linear-modulated-noise min max slope x-cord y-cord)
+  (define (linear-noise n slope) (* slope n))
+  (define x-val (linear-noise x-cord slope))
+  (define y-val (linear-noise y-cord slope))
+
+  (abs (simplex (+ x-val (get-seed)) (+ y-val (get-seed))))
+
+  
+  )
+;Gets an x and y sample from a sinusoid and then composes them
+(define (sine-modulated-noise start-deg end-deg min max x-cord y-cord)
+
+  ;Creates a sine modulated signal
 (define (sine-modulation start-deg end-deg min max sample-num)
   (let ([radians (* (- end-deg start-deg) (/ pi 180))]
         [dev (/ (- max min) 2)]
@@ -95,31 +117,12 @@
      (+ (* dev (sin (* radians sample-num))) base) min max)
     )
 
-
-  (define width-sample-space (linspace 0  100 MAP-WIDTH))
-  (define height-sample-space (linspace 0 100  MAP-HEIGHT))
-
-
-
-
-
-;Gets an x and y sample from a sinusoid and then composes them
-(define (sine-modulated-noise start-deg end-deg min max x-cord y-cord)
-
   ( let ([x-point (sine-modulation start-deg end-deg min max (list-ref width-sample-space x-cord))]
         [y-point (sine-modulation start-deg end-deg min max y-cord)])
      (abs (perlin (+ x-point (get-seed) (+ y-point (get-seed)))))
 
      ))
 
-
-
-
-(define samples (in-range 0 100))
-
-(define data (for/list ([i samples]) (sine-modulation 0 360 1 1000 i)))
-(define data2 (for/list ([i (in-range MAP-WIDTH)]) (sine-modulated-noise 0 360 100 200 i i)))
-                                                                        
 
 ;(plot (points (map vector samples data) #:color 'red))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -162,19 +165,44 @@
 (define (get-tile grid x y)
   (vector-ref (vector-ref grid x) y))
 
+
+(define (square-bump x y)
+  (- 1.0(* (- 1 (expt x 2)) (- 1 (expt y 2)))))
+
+(define (apply-reshape func x y noise-val)
+  (let ([distance (func x y)])
+    (/ (+ noise-val (- 1.0 distance)) 2)
+    )
+  )
+
 ; Creates a tile with a noise value. The noise-func is any kind of noise generation function
 ; That has at least an x-cord and a y-cord. All of the arguments before x-cord and y-cord are curried
+;nx and ny are used as inputs to the distance function we're using
+;At the moment using square bump distance
 (define (create-noise-tile x-cord y-cord noise-func)
+  (define nx (- (/ (* 2 x-cord) MAP-WIDTH) 1))
+  (define ny (- (/ (* 2 y-cord) MAP-HEIGHT) 1))
+  (define temp-noise (noise-func x-cord y-cord))
+  (define final-noise (apply-reshape square-bump nx ny temp-noise))
   (hash 'x x-cord
         'y y-cord
         'tile-width (* x-cord TILE-SIZE)
         'tile-height (* y-cord TILE-SIZE)
         ;'noise (abs(simplex x-cord y-cord))))
-        'noise (noise-func x-cord y-cord)))
+        ;'noise (/ (+ temp-noise (- 1 distance)) 2)
+        'noise temp-noise
+  
+
+
+        ))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;                                World Map Related                                                ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+
+(define (split-list lst)
+  (map (lambda (item) (list item))lst))
 
 (define (prepare-noise-func noise-func)
   (lambda (x-cord y-cord)
@@ -184,19 +212,23 @@
   (lambda (x-cord y-cord)
     (noise-func 0 360 1 10000 x-cord y-cord)))
 
-(define (prepare-noise-func3 noise-func optional-args )
-    (lambda (x-cord y-cord)
-    (noise-func (optional-args) x-cord y-cord)))
+(define (prepare-noise-func3 noise-func)
+  (lambda (x-cord y-cord)
+    (noise-func 0 100 1  x-cord y-cord)))
 
 
-(prepare-noise-func3 sine-modulated-noise '(0 360 1 1000))
 
 (define (initialize-world-map)
   (define world-map (make-vector MAP-WIDTH))
   (for ([x-cord (in-range MAP-WIDTH)])
     (define row (make-vector MAP-HEIGHT))
     (for ([y-cord (in-range MAP-HEIGHT)])
-      (vector-set! row y-cord (create-noise-tile x-cord y-cord (prepare-noise-func2 sine-modulated-noise))))
+      ;(vector-set! row y-cord (create-noise-tile x-cord y-cord (prepare-noise-func-test sine-noise-args sine-modulated-noise))))
+         (define temp-tile (create-noise-tile x-cord y-cord (prepare-noise-func compose-noise)))
+
+          
+        (vector-set! row y-cord temp-tile))
+       ;(vector-set! row y-cord (create-noise-tile x-cord y-cord (prepare-noise-func3 linear-modulated-noise))))
     (vector-set! world-map x-cord row))
   world-map)
 
