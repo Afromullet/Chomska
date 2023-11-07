@@ -6,11 +6,29 @@
 (require "WorldMap.rkt")
 
 
+; Define a list of noise functions
+(define noise-functions
+  '("square-bump" "euclidian-squared" "lol-function"))
 
-(define (world-map) (initialize-world-map))
 
-(define (generate-new-world-map)
-  (set! world-map (initialize-world-map)))
+
+
+(define (world-map) (initialize-world-map noise-composition euclidian-squared))
+
+(define (world-map-distance-func distance-func) (initialize-world-map noise-composition distance-func))
+
+
+(define distance-functions
+  (hash "square-bump" square-bump
+        "euclidian-squared" euclidian-squared
+        "lol-function" lol-function
+        ))
+
+; Set frequency to specific note
+(define (set-distance-function choice event canvas)
+  (world-map-distance-func (hash-ref distance-functions (send choice get-string-selection)))
+  (printf (send choice get-string-selection))
+  (send canvas refresh))
 
 
 
@@ -20,6 +38,16 @@
                   [width (* MAP-WIDTH TILE-SIZE)]
                   [height (* MAP-HEIGHT TILE-SIZE)]
                   [alignment '(center center)]))
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -34,6 +62,7 @@
     (define/override (on-event event)
       (send msg set-label "Canvas mouse")
       (send msg set-label "Canvas mouse1"))
+    
     ; Define overriding method to handle keyboard events
     (define/override (on-char event)
 
@@ -54,6 +83,19 @@
                    [stretchable-height #f]
                    [paint-callback (lambda (canvas dc)
                                      (draw-tile-map canvas (world-map)))]))
+
+
+
+; Create a list-box with the noise function options
+(define noise-function-list-box
+  (new list-box%
+    [label "Select Noise Function"] ; Set the label here
+    [choices noise-functions]
+    [parent frame]
+    [callback
+     (lambda (choice event)
+       (set-distance-function choice event canvas))]))
+
 
 
 

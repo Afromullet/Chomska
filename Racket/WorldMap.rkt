@@ -5,9 +5,6 @@
 
 
 
-
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;                                Definitions                                                       ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -31,7 +28,7 @@ ________________________________________________________________________________
 
 
 ;Returns the png for a noise value
-(define (get-noise-png noise-val)
+(define (get-biome-data noise-val)
   (cond
     [(< noise-val 0.1) (cons "ocean" "water1.png")]
     [(< noise-val 0.2) (cons "beach" "beachsand1.png")]
@@ -44,7 +41,7 @@ ________________________________________________________________________________
 
 ;Creates a biome based on heeight
 (define (create-biome  height-value)
-  (let ([biome-data (get-noise-png height-value)])  
+  (let ([biome-data (get-biome-data height-value)])  
   (hash
    'name (car biome-data)
    'pngPath (cdr biome-data))))
@@ -222,28 +219,42 @@ normalized-noise)))
 (define (square-bump x y)
   (- 1.0(* (- 1 (expt x 2)) (- 1 (expt y 2)))))
 
+(define (euclidian-squared x y)
+  (min 1 ( / (+ (expt x 2) (expt y 2)) (sqrt 2))))
+
+(define (distance-squared x y)
+  (- 1 (+ (expt x 2) (expt y 2))))
+
+(define (no-distance-function x y)
+  1)
+
+(define (lol-function x y)
+  3)
 
 
 ;Applies the distance function
+;Checks to see if the function passed as a parameter is no-distance-function. Then it returns the original noise value
+;I don't really like doing a conditional that checks for a specific procedure name, but that works for now. 
 (define (apply-reshape func x y noise-val)
+  (if (eq? func no-distance-function) noise-val
   (let ([distance (func x y)])
-    (/ (+ noise-val (- 1.0 distance)) 2)))
+    (/ (+ noise-val (- 1.0 distance)) 2))))
 
 
 ; Creates a tile with a noise value. The noise-func is any kind of noise generation function
 ; That has at least an x-cord and a y-cord. All of the arguments before x-cord and y-cord are curried
 ;nx and ny are used as inputs to the distance function we're using
 ;At the moment using square bump distance
-(define (create-noise-tile x-cord y-cord noise)
+(define (create-noise-tile x-cord y-cord noise distance-function)
   (define nx (- (/ (* 2 x-cord) MAP-WIDTH) 1))
   (define ny (- (/ (* 2 y-cord) MAP-HEIGHT) 1))
   (define temp-noise (noise-at noise x-cord y-cord))
-  (define final-noise (apply-reshape square-bump nx ny temp-noise))
+  (define final-noise (apply-reshape distance-function nx ny temp-noise))
   (hash 'x x-cord
         'y y-cord
         'tile-width (* x-cord TILE-SIZE)
         'tile-height (* y-cord TILE-SIZE)
-        'biome (create-biome temp-noise)))
+        'biome (create-biome final-noise)))
 
 
 
@@ -259,13 +270,13 @@ normalized-noise)))
 
 
 ;Creates the world map using a noise function
-(define (initialize-world-map)
+(define (initialize-world-map noise-function distance-function)
   (define world-map (make-vector MAP-WIDTH))
   (for ([x-cord (in-range MAP-WIDTH)])
     (define row (make-vector MAP-HEIGHT))
     (for ([y-cord (in-range MAP-HEIGHT)])
 
-         (define temp-tile (create-noise-tile x-cord y-cord noise-composition))
+         (define temp-tile (create-noise-tile x-cord y-cord noise-function distance-function))
         (vector-set! row y-cord temp-tile))
 
     (vector-set! world-map x-cord row))
