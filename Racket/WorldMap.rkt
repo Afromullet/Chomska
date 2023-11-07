@@ -3,6 +3,11 @@
 (require  noise)
 (require plot)
 
+
+
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;                                Definitions                                                       ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -17,6 +22,36 @@
 (define (normalize-sample value min max)
   (/ (- value min) (- max min)))
 
+#|
+________________________________"Biomes_______________________________________________
+
+____________________________________________________________________________________________________
+|#
+
+
+
+;Returns the png for a noise value
+(define (get-noise-png noise-val)
+  (cond
+    [(< noise-val 0.1) (cons "ocean" "water1.png")]
+    [(< noise-val 0.2) (cons "beach" "beachsand1.png")]
+    [(< noise-val 0.3) (cons "forest" "tree1.png")]
+    [(< noise-val 0.5) (cons "jungle" "jungle1.png")]
+    [(< noise-val 0.7) (cons "taiga" "shrubland1.png")]
+    [(< noise-val 0.9) (cons "desert" "deserttile1.png")]
+    [else  (cons "snowlands" "snowground1.png")]))
+
+
+;Creates a biome based on heeight
+(define (create-biome  height-value)
+  (let ([biome-data (get-noise-png height-value)])  
+  (hash
+   'name (car biome-data)
+   'pngPath (cdr biome-data))))
+
+(define (get-biome-png tile)(hash-ref (hash-ref tile 'biome) 'pngPath))
+
+ 
 
 #|
 ________________________________"Interface" for noise_______________________________________________
@@ -36,6 +71,7 @@ ________________________________________________________________________________
 
 (define (noise-at noise x y)
   ((noise-function noise) x y))
+
 
 
 
@@ -127,9 +163,9 @@ normalized-noise)))
     (lambda (x y)
       (define (linear-noise n slope) (* slope n)) ; Our linear function
 
-      (let ([x-val (linear-noise x slope)]
-            [y-val (linear-noise y slope)])
-        (abs (simplex (+ x-val (get-seed)) (+ y-val (get-seed))))))))
+      (let ([linear-x (linear-noise x slope)]
+            [linear-y (linear-noise y slope)])
+        (abs (simplex (+ (+ linear-x) (get-seed)) (+ (+ y linear-y) (get-seed))))))))
 
 ;Gets an x and y sample from a sinusoid to buiild nose
 (define (sine-modulated-noise start-deg end-deg min max)
@@ -141,9 +177,9 @@ normalized-noise)))
               [base (/ (+ max min) 2)])
           (+ (* dev (sin (* radians sample-num))) base min max)))
       
-      (let ([x-point (sine-modulation start-deg end-deg min max (list-ref width-sample-space x))]
-            [y-point (sine-modulation start-deg end-deg min max y)])
-        (abs (perlin (+ x-point (get-seed) (+ y-point (get-seed)))))))))
+      (let ([sine-x (sine-modulation start-deg end-deg min max (list-ref width-sample-space x))]
+            [sine-y (sine-modulation start-deg end-deg min max y)])
+        (abs (perlin (+ (+ x sine-x) (get-seed) (+ (+ y sine-y) (get-seed)))))))))
 
 
 ;(plot (points (map vector samples data) #:color 'red))
@@ -161,24 +197,17 @@ normalized-noise)))
   (for ([x (in-range MAP-WIDTH)])
     (for ([y (in-range MAP-HEIGHT)])
       (let ([tile (get-tile world-map x y)])
-        (draw-tile-png dc (hash-ref tile 'tile-width)
-                       (hash-ref tile 'tile-height ) (get-noise-png(hash-ref tile 'noise)))))))   
+                (draw-tile-png dc (hash-ref tile 'tile-width)
+                       (hash-ref tile 'tile-height ) (get-biome-png tile))))))
+
+
+
 
 ;Sends the drawing command to the canvas
 (define (draw-tile-png dc x y image-path)
   (define image (read-bitmap image-path))
   (send dc draw-bitmap image x y))
 
-;Returns the png for a noise value
-(define (get-noise-png noise-val)
-  (cond
-    [(< noise-val 0.1) "water1.png"]
-    [(< noise-val 0.2) "beachsand1.png"]
-    [(< noise-val 0.3) "tree1.png"]
-    [(< noise-val 0.5) "jungle1.png"]
-    [(< noise-val 0.7) "shrubland1.png"]
-    [(< noise-val 0.9) "deserttile1.png"]
-    [else  "snowground1.png"]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -192,6 +221,8 @@ normalized-noise)))
 ;Square-bump distance function
 (define (square-bump x y)
   (- 1.0(* (- 1 (expt x 2)) (- 1 (expt y 2)))))
+
+
 
 ;Applies the distance function
 (define (apply-reshape func x y noise-val)
@@ -207,25 +238,19 @@ normalized-noise)))
   (define nx (- (/ (* 2 x-cord) MAP-WIDTH) 1))
   (define ny (- (/ (* 2 y-cord) MAP-HEIGHT) 1))
   (define temp-noise (noise-at noise x-cord y-cord))
-  ;(define final-noise (apply-reshape square-bump nx ny temp-noise))
+  (define final-noise (apply-reshape square-bump nx ny temp-noise))
   (hash 'x x-cord
         'y y-cord
         'tile-width (* x-cord TILE-SIZE)
         'tile-height (* y-cord TILE-SIZE)
-        ;'noise (abs(simplex x-cord y-cord))))
-        ;'noise (/ (+ temp-noise (- 1 distance)) 2)
-        'noise  temp-noise)
-  )
+        'biome (create-biome temp-noise)))
+
+
+
   
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;                                World Map Related                                                ;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-
-
 
 
 (define noise-composition (compose-noise (build-noise-composition-params 3)))
@@ -247,10 +272,20 @@ normalized-noise)))
   world-map)
 
 
-
-
-
-
+;; Example usage:
+(define-world-map-generator
+  create-my-world
+  [(with-noise-function noise-composition)
+   (with-map-size 100 100)
+   (with-seed 42)
+   (with-distance-func square-bump)]
+  [(add-biome 0.1 'ocean "water1.png")
+   (add-biome 0.2 'beach "beachsand1.png")
+   (add-biome 0.3 'forest "tree1.png")
+   (add-biome 0.5 'jungle "jungle1.png")
+   (add-biome 0.7 'taiga "shrubland1.png")
+   (add-biome 0.9 'desert "deserttile1.png")
+   (add-biome 1.0 'snowlands "snowground1.png")])
 
 
 (provide (all-defined-out))
