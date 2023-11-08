@@ -4,7 +4,7 @@
 (require  noise)
 (require plot)
 
-
+;Basing the implementation on this https://www.redblobgames.com/maps/terrain-from-noise/
 
 #|________________________________Definitions_______________________________________________
 
@@ -27,23 +27,46 @@ Handles biome selection
 ____________________________________________________________________________________________________|#
 
 
+;Don't know where I got the tile PNGs from, can't reference the source
+;Returns the png for a noise value
+(define (get-biome-data2 elevation-value moisture-value)
+  (cond
+    [(< elevation-value 0.1) (cons "ocean" "tiles\\water.png")]
+    [(< elevation-value 0.12) (cons "ocean" "tiles\\beach.png")]
+    [(< elevation-value 0.12) (cons "ocean" "tiles\\beach.png")]
+    
+    [(< elevation-value 0.8)
+
+    ;  (cond
+    ;    [(< moisture-value 0.1) (cons "scorched" "tiles\\scorched.png")]
+    ;   [(< moisture-value 0.1) (cons "bare" "tiles\\bare.png")]
+    ;   [(< moisture-value 0.1) (cons "tundra" "tiles\\tundra.png")]
+    ;    else (cons "snow" "tiles\\snow.png"))]
+    ;
+
+   
+    [(< elevation-value 0.5) (cons "jungle" "tiles\\tree2.png")]
+    [(< elevation-value 0.7) (cons "taiga" "tiles\\shrubland.png")]
+    [(< elevation-value 0.9) (cons "desert" "tiles\\desert.png")]
+    [else  (cons "snowlands" "tiles\\bare.png")]))
+
 
 
 ;Returns the png for a noise value
-(define (get-biome-data noise-val)
+(define (get-biome-data elevation-value moisture-value)
   (cond
-    [(< noise-val 0.1) (cons "ocean" "water1.png")]
-    [(< noise-val 0.2) (cons "beach" "beachsand1.png")]
-    [(< noise-val 0.3) (cons "forest" "tree1.png")]
-    [(< noise-val 0.5) (cons "jungle" "jungle1.png")]
-    [(< noise-val 0.7) (cons "taiga" "shrubland1.png")]
-    [(< noise-val 0.9) (cons "desert" "deserttile1.png")]
-    [else  (cons "snowlands" "snowground1.png")]))
+    [(< elevation-value 0.1) (cons "ocean" "tiles\\water.png")]
+    [(< elevation-value 0.2) (cons "beach" "tiles\\beach.png")]
+    [(< elevation-value 0.3) (cons "forest" "tiles\\forest.png")]
+    [(< elevation-value 0.5) (cons "jungle" "tiles\\tree2.png")]
+    [(< elevation-value 0.7) (cons "taiga" "tiles\\shrubland.png")]
+    [(< elevation-value 0.9) (cons "desert" "tiles\\desert.png")]
+    [else  (cons "snowlands" "tiles\\bare.png")]))
 
 
 ;Creates a biome based on heeight
-(define (create-biome  height-value)
-  (let ([biome-data (get-biome-data height-value)])  
+(define (create-biome  elevation-value moisture-value)
+  (let ([biome-data (get-biome-data elevation-value moisture-value)])  
     (hash
      'name (car biome-data)
      'pngPath (cdr biome-data))))
@@ -74,22 +97,7 @@ _______________________________________________________________|#
 (struct noise-composition-params (amplitudes octaves total-amplitude ))
 
 
-;Creates the noise-composition-params, which is based on
-;the number of octaves. 
-(define (build-noise-composition-params num-octaves)
 
-  ;Used to create the noise-composition-params type struct
-  (define (create-noise-composition-params amplitudes octaves)
-    (noise-composition-params amplitudes octaves (apply + amplitudes))) 
-  
-  (let ([amps '()]
-        [octs '()])
-    (for/list ([i (in-range 1 (+ num-octaves 1))])
-      (let* ([octave (expt 2 (- i 1))]
-             [amplitude (/ 1.0 octave)])
-        (set! amps (append amps (list amplitude)))
-        (set! octs (append octs (list octave)))))
-    (create-noise-composition-params amps octs)))
 
 
 ;Composes the noise by adding several noise sources together using octaves and amplitudes.
@@ -98,11 +106,37 @@ _______________________________________________________________|#
 ;noise-values calls generate-octave noise for all of the octaves and amplitudes
 ;Then we normalize it at the end 
 
-(define (compose-noise source)
+(define (compose-noise num-octaves)
+
+  ;Creates the noise-composition-params, which is based on
+  ;the number of octaves. 
+  (define (build-noise-composition-params num-octaves)
+
+    ;Used to create the noise-composition-params type struct
+    (define (create-noise-composition-params amplitudes octaves)
+      (noise-composition-params amplitudes octaves (apply + amplitudes))) 
+  
+    (let ([amps '()]
+          [octs '()])
+      (for/list ([i (in-range 1 (+ num-octaves 1))])
+        (let* ([octave (expt 2 (- i 1))]
+               [amplitude (/ 1.0 octave)])
+          (set! amps (append amps (list amplitude)))
+          (set! octs (append octs (list octave)))))
+      (create-noise-composition-params amps octs)))
+
+  (define source (build-noise-composition-params num-octaves))
+
+  ;normalizes the noise so that we have values between 0 and 1 using the sum of the amplitudes
+  (define (normalize-composition-noise noise-value total-amplitude)
+    (/ noise-value total-amplitude))
+
+  (define (generate-octave-noise amplitude octave x y) ;Divides by the map width and height so we get values between 0-1
+    (* amplitude (abs(perlin (* octave (/ x MAP-WIDTH))
+                             (* octave (/ y MAP-HEIGHT))))))
+  
   (modulator (lambda (x y)
-               (define (generate-octave-noise amplitude octave x y) ;Divides by the map width and height so we get values between 0-1
-                 (* amplitude (abs(perlin (* octave (/ x MAP-WIDTH))
-                                          (* octave (/ y MAP-HEIGHT))))))
+           
                (define noise-values
                  (for/list ([amp (noise-composition-params-amplitudes source)]
                             [oct (noise-composition-params-octaves source)])
@@ -111,9 +145,6 @@ _______________________________________________________________|#
                (define normalized-noise (normalize-composition-noise (foldl + 0 noise-values) (noise-composition-params-total-amplitude source)))
                normalized-noise)))
 
-;normalizes the noise so that we have values between 0 and 1 using the sum of the amplitudes
-(define (normalize-composition-noise noise-value total-amplitude)
-  (/ noise-value total-amplitude))
 
 
 #|______________Trigonometric Functions for Noise_________________________
@@ -128,9 +159,6 @@ _________________________________________________________________________|#
   (for/list ([i (in-range num)])
     (+ start (* (/ i (- num 1.0)) (- stop start)))))
 
-;We need values to sample from. 
-(define width-sample-space (linspace 0  100 MAP-WIDTH))
-(define height-sample-space (linspace 0 100  MAP-HEIGHT))
 
 (define (linear-modulated-noise min max slope)
   (modulator
@@ -143,6 +171,13 @@ _________________________________________________________________________|#
 
 ;Gets an x and y sample from a sinusoid to buiild nose
 (define (sine-modulated-noise start-deg end-deg min max)
+
+
+  ;We need values to sample from. 
+  (define width-sample-space (linspace 0  100 MAP-WIDTH))
+  (define height-sample-space (linspace 0 100  MAP-HEIGHT))
+
+  
   (modulator
    (lambda (x y)
      (define (sine-modulation start-deg end-deg min max sample-num)
@@ -152,7 +187,7 @@ _________________________________________________________________________|#
          (+ (* dev (sin (* radians sample-num))) base min max)))
       
      (let ([sine-x (sine-modulation start-deg end-deg min max (list-ref width-sample-space x))]
-           [sine-y (sine-modulation start-deg end-deg min max y)])
+           [sine-y (sine-modulation start-deg end-deg min max (list-ref height-sample-space x))])
        (abs (perlin (+ (+ x sine-x) (get-seed) (+ (+ y sine-y) (get-seed)))))))))
 
 
@@ -221,7 +256,7 @@ ________________________________________________________________________________
   ((modulator-function modulator) x y))
 
 ;Current modulator functions
-(define noise-composition (compose-noise (build-noise-composition-params 16)))
+(define noise-composition (compose-noise 16))
 (define linear-stuff (linear-modulated-noise 1 1 2))
 (define sine-noise (sine-modulated-noise 0 360 1 100))
 
@@ -287,11 +322,12 @@ ________________________________________________________________________________
 (define (create-noise-tile x-cord y-cord elevation-transformer moisture-transformer)
 
   (define elevation-noise (transform-noise elevation-transformer x-cord y-cord))
+  (define moisture-noise (transform-noise moisture-transformer x-cord y-cord))
   (hash 'x x-cord
         'y y-cord
         'tile-width (* x-cord TILE-SIZE)
         'tile-height (* y-cord TILE-SIZE)
-        'biome (create-biome elevation-noise)))
+        'biome (create-biome elevation-noise moisture-noise)))
 
 
 ;Creates the world map using a noise function

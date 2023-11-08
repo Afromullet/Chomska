@@ -168,7 +168,59 @@ ________________________________________________________________________________
 ; Show the frame by calling its show method
 (send elevation-settings-frame show #t)
 
+#|_______________________________moisture Parameter GUI Compoents_____________________________________________________
 
+Creates the GUI components for the main window
+____________________________________________________________________________________________________|#
+
+;GUI Portion for moisture noise parameters
+
+; Make a frame by instantiating the frame% class
+(define moisture-settings-frame (new frame% [label "Example"]))
+
+; Create a list-box with the noise function options
+(define moisture-distance-function-list-box
+  (new list-box%
+       [label "Select moisture Distance Function"] ; Set the label here
+       [choices distance-func-names]
+       [parent moisture-settings-frame]
+       [callback
+        (lambda (choice event)
+          (set-distance-function choice event canvas moisture-transformer))]))
+
+
+; Create a list-box with the noise function options
+(define moisture-modulation-function-list-box
+  (new list-box%
+       [label "Select moisture Modulation Function"] ; Set the label here
+       [choices modulation-func-names]
+       [parent moisture-settings-frame]
+       [callback
+        (lambda (choice event)
+          (set-modulation-function choice event canvas moisture-transformer))]))
+
+(define moisture-redistribution-fudge-factor
+  (new slider%
+       [label "moisture Redistribution Fudge Factor"]
+       [min-value 0]
+       [max-value 10]
+       [parent moisture-settings-frame]
+       [callback
+        (lambda (entry event)  (get-fudge-factor entry event moisture-transformer))]))
+
+
+(define moisture-redistribution-exponent
+  (new slider%
+       [label "Redistribution Exponent"]
+       [min-value 0]
+       [max-value 10]
+       [parent moisture-settings-frame]
+       [callback
+        (lambda (entry event) (get-expt entry event moisture-transformer))]))
+
+
+; Show the frame by calling its show method
+(send moisture-settings-frame show #t)
 
 
 
