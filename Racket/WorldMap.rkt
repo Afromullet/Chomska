@@ -20,6 +20,7 @@ ________________________________________________________________________________
   (current-inexact-milliseconds))
 
 
+
 #|________________________________"Biomes_______________________________________________
 
 Handles biome selection
@@ -98,22 +99,21 @@ _______________________________________________________________|#
 ;Then we normalize it at the end 
 
 (define (compose-noise source)
-  (noise (lambda (x y)
-           (define (generate-octave-noise amplitude octave x y) ;Divides by the map width and height so we get values between 0-1
-             (* amplitude (abs(perlin (* octave (/ x MAP-WIDTH))
-                                      (* octave (/ y MAP-HEIGHT))))))
-           (define noise-values
-             (for/list ([amp (noise-composition-params-amplitudes source)]
-                        [oct (noise-composition-params-octaves source)])
-               (generate-octave-noise amp oct (+ x (get-seed)) (+ y (get-seed)))))
+  (modulator (lambda (x y)
+               (define (generate-octave-noise amplitude octave x y) ;Divides by the map width and height so we get values between 0-1
+                 (* amplitude (abs(perlin (* octave (/ x MAP-WIDTH))
+                                          (* octave (/ y MAP-HEIGHT))))))
+               (define noise-values
+                 (for/list ([amp (noise-composition-params-amplitudes source)]
+                            [oct (noise-composition-params-octaves source)])
+                   (generate-octave-noise amp oct (+ x (get-seed)) (+ y (get-seed)))))
            
-           (define normalized-noise (normalize-composition-noise (foldl + 0 noise-values) (noise-composition-params-total-amplitude source)))
-           normalized-noise)))
+               (define normalized-noise (normalize-composition-noise (foldl + 0 noise-values) (noise-composition-params-total-amplitude source)))
+               normalized-noise)))
 
 ;normalizes the noise so that we have values between 0 and 1 using the sum of the amplitudes
 (define (normalize-composition-noise noise-value total-amplitude)
   (/ noise-value total-amplitude))
-
 
 
 #|______________Trigonometric Functions for Noise_________________________
@@ -133,7 +133,7 @@ _________________________________________________________________________|#
 (define height-sample-space (linspace 0 100  MAP-HEIGHT))
 
 (define (linear-modulated-noise min max slope)
-  (noise
+  (modulator
    (lambda (x y)
      (define (linear-noise n slope) (* slope n)) ; Our linear function
 
@@ -143,7 +143,7 @@ _________________________________________________________________________|#
 
 ;Gets an x and y sample from a sinusoid to buiild nose
 (define (sine-modulated-noise start-deg end-deg min max)
-  (noise
+  (modulator
    (lambda (x y)
      (define (sine-modulation start-deg end-deg min max sample-num)
        (let ([radians (* (- end-deg start-deg) (/ pi 180))]
@@ -156,28 +156,95 @@ _________________________________________________________________________|#
        (abs (perlin (+ (+ x sine-x) (get-seed) (+ (+ y sine-y) (get-seed)))))))))
 
 
+#|______________Other________________________
+
+
+Applies modulation to a noise value
+_________________________________________________________________________|#     
+
+
+
+
 #|________________________________"Interface" for noise_______________________________________________
 
-This is to allow different implemetnations of noise. All of the implementations require an x and a y.
-Any other parameters are up to the person implementing it
+I want to experiment with a variety of noise generation and modification techniques.
 
-Implementations look like this
+A noise transformer requires the following:
 
-(define (function-name param-1 param-2...param-n)
-  (noise (lambda (x y) ...))
+1) Distance Applier: Any distance function that takes x,y as input
+2) Modulator: A function that takes x,y as input and returns a noise value. Should work as long as
+the function has the following form:
+(define (function-name var-args)
+  (modulator
+   (lambda (x y)
+3) todo comment on redist furge and redist exp later
+
+
+
 ____________________________________________________________________________________________________|#
 
+;A noise transformer is a thing that takes a noise value
+;And produces a new noise value
+(struct noise-transformer
+  ( [distance-applier #:mutable]
+    [modulator #:mutable] ;todo rename the "Noise" struc tto modulator or something that makes sense giving this nbaming schem
+    [redist-fudge #:mutable]
+    [redist-expt #:mutable]))
+
+(define (create-noise-transformer distance-applier modulator redist-furge redist-exp)
+  (noise-transformer  distance-applier modulator redist-furge redist-exp))
 
 
-(struct noise (function))
+(define (get-distance-applier transformer) (noise-transformer-distance-applier transformer))
+(define (get-modulator transformer) (noise-transformer-modulator transformer))
+(define (get-redist-fudge transformer) (noise-transformer-redist-fudge transformer))
+(define (get-redist-expt transformer) (noise-transformer-redist-expt transformer))
 
-(define (noise-at noise x y)
-  ((noise-function noise) x y))
+(define (set-distance-applier transformer distance-applier) (set-noise-transformer-distance-applier! transformer distance-applier))
+(define (set-modulator transformer modulator) (set-noise-transformer-modulator! transformer modulator))
+(define (set-redist-fudge transformer redist-fudge) (set-noise-transformer-redist-fudge! transformer redist-fudge))
+(define (set-redist-exp transformer redist-expt) (set-noise-transformer-redist-expt! transformer redist-expt))
 
+;Applies the transformation to the noise at x,y
+(define (transform-noise transformer x y)
+  (define nx (- (/ (* 2 x) MAP-WIDTH) 1))
+  (define ny (- (/ (* 2 y) MAP-HEIGHT) 1))
+  (define temp-noise (expt (* (noise-at (get-modulator transformer) x y) (get-redist-fudge transformer) ) (get-redist-expt transformer)))
+  (define final-noise (apply-reshape (get-distance-applier transformer) nx ny temp-noise))
+  final-noise)
+
+
+
+;A struct to store the modulator function so we can use a closure for variable args
+(struct modulator (function))
+(define (noise-at modulator x y)
+  ((modulator-function modulator) x y))
+
+;Current modulator functions
 (define noise-composition (compose-noise (build-noise-composition-params 16)))
 (define linear-stuff (linear-modulated-noise 1 1 2))
 (define sine-noise (sine-modulated-noise 0 360 1 100))
 
+;Distance functions
+(define (square-bump x y)
+  (- 1.0(* (- 1 (expt x 2)) (- 1 (expt y 2)))))
+
+(define (euclidian-squared x y)
+  (min 1 ( / (+ (expt x 2) (expt y 2)) (sqrt 2))))
+
+(define (distance-squared x y)
+  (- 1 (+ (expt x 2) (expt y 2))))
+
+(define (no-distance-function x y) 1)
+
+
+;Applies the distance function
+;Checks to see if the function passed as a parameter is no-distance-function. Then it returns the original noise value
+;I don't really like doing a conditional that checks for a specific procedure name, but that works for now. 
+(define (apply-reshape func x y noise-val)
+  (if (eq? func no-distance-function) noise-val
+      (let ([distance (func x y)])
+        (/ (+ noise-val (- 1.0 distance)) 2))))
 
 #|_______________________________Drawing and Tile Related___________________________________________
 
@@ -202,44 +269,12 @@ ________________________________________________________________________________
                    (hash-ref tile 'tile-height)
                    (get-biome-png tile))))
 
-#|_______________________________Distance Metric Functions___________________________________________
-
-This section contains all of the distance function calculation variations
-____________________________________________________________________________________________________|#
-
-
 ;Returns the hash table at the coordinates
 (define (get-tile grid x y)
   (vector-ref (vector-ref grid x) y))
 
-;Square-bump distance function
-(define (square-bump x y)
-  (- 1.0(* (- 1 (expt x 2)) (- 1 (expt y 2)))))
 
-(define (euclidian-squared x y)
-  (min 1 ( / (+ (expt x 2) (expt y 2)) (sqrt 2))))
-
-(define (distance-squared x y)
-  (- 1 (+ (expt x 2) (expt y 2))))
-
-(define (no-distance-function x y)
-  1)
-
-(define (lol-function x y)
-  3)
-
-
-;Applies the distance function
-;Checks to see if the function passed as a parameter is no-distance-function. Then it returns the original noise value
-;I don't really like doing a conditional that checks for a specific procedure name, but that works for now. 
-(define (apply-reshape func x y noise-val)
-  (if (eq? func no-distance-function) noise-val
-      (let ([distance (func x y)])
-        (/ (+ noise-val (- 1.0 distance)) 2))))
-
-  
 #|_______________________________World Map Related___________________________________________
-
 
 
 World map creation
@@ -247,33 +282,26 @@ ________________________________________________________________________________
 
 
 
-
-
-; Creates a tile with a noise value. The noise-func is any kind of noise generation function
-; That has at least an x-cord and a y-cord. All of the arguments before x-cord and y-cord are curried
-;nx and ny are used as inputs to the distance function we're using
-
+;The noise transformer handles the noise generation
 ;The expt calculation for the temp noise. We use Math.pow(e * fudge_factor, exponent),
-(define (create-noise-tile x-cord y-cord noise distance-function redist-fudge redist-exp)
-  (define nx (- (/ (* 2 x-cord) MAP-WIDTH) 1))
-  (define ny (- (/ (* 2 y-cord) MAP-HEIGHT) 1))
-  (define temp-noise (expt (* (noise-at noise x-cord y-cord) redist-fudge) redist-exp  ))
-  (define final-noise (apply-reshape distance-function nx ny temp-noise))
+(define (create-noise-tile x-cord y-cord elevation-transformer moisture-transformer)
+
+  (define elevation-noise (transform-noise elevation-transformer x-cord y-cord))
   (hash 'x x-cord
         'y y-cord
         'tile-width (* x-cord TILE-SIZE)
         'tile-height (* y-cord TILE-SIZE)
-        'biome (create-biome final-noise)))
+        'biome (create-biome elevation-noise)))
 
 
 ;Creates the world map using a noise function
-(define (initialize-world-map distance-function noise-function redist-fudge redist-exp)
+(define (initialize-world-map elevation-transformer moisture-transformer)
   (define world-map (make-vector MAP-WIDTH))
   (for ([x-cord (in-range MAP-WIDTH)])
     (define row (make-vector MAP-HEIGHT))
     (for ([y-cord (in-range MAP-HEIGHT)])
 
-      (define temp-tile (create-noise-tile x-cord y-cord noise-function distance-function redist-fudge redist-exp))
+      (define temp-tile (create-noise-tile x-cord y-cord elevation-transformer moisture-transformer))
       (vector-set! row y-cord temp-tile))
 
     (vector-set! world-map x-cord row))

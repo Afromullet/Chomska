@@ -5,99 +5,64 @@
 
 (require "WorldMap.rkt")
 
+(define elevation-transformer (create-noise-transformer no-distance-function noise-composition 1 1))
+(define moisture-transformer (create-noise-transformer no-distance-function noise-composition 1 1))
 
-;Parameters that modify world map generation
-(struct map-parameters ([distance-func #:mutable]
-                        [noise-func #:mutable]
-                        [redist-fudge #:mutable]
-                        [redist-exp #:mutable]))
-
-(define (create-map-parameters current-dist-func current-noise-func redist-fudge redist-exp)
-  (map-parameters current-dist-func current-noise-func redist-fudge redist-exp))
-
-(define map-params (create-map-parameters no-distance-function noise-composition 1 1))
-
-
-
-(define (world-map) (initialize-world-map (map-parameters-distance-func map-params)
-                                          (map-parameters-noise-func map-params)
-                                          (map-parameters-redist-fudge map-params)
-                                          (map-parameters-redist-exp map-params)))
-
-
-(map-parameters-distance-func map-params)
+(define (world-map) (initialize-world-map elevation-transformer moisture-transformer))
 
 (define update-world-map
   (lambda ()
-    (set! world-map (initialize-world-map (map-parameters-distance-func map-params)
-                                          (map-parameters-noise-func map-params)
-                                          (map-parameters-redist-fudge map-params)
-                                          (map-parameters-redist-exp map-params)))world-map))
+    (set! world-map (initialize-world-map elevation-transformer moisture-transformer))))
 
 
-#|_______________________________Distance Function Selection  Helpers_________________________________
+#|_______________________________User Input Event Handlers_________________________________
 
-Functions that allow the user to select which distance function to apply to the world map
+Handles user inptu events
 ____________________________________________________________________________________________________|#
 
-; Define a list of noise functions
+; Define a list of distance functions
 (define distance-func-names
   '("square-bump" "euclidian-squared" "no-distance-function"))
 
-
-(define (set-distance-function choice event canvas)
-  
+;Lets us get the function with user selected choice
+(define (set-distance-function choice event canvas transformer)
   (define distance-functions
     (hash "square-bump" square-bump
           "euclidian-squared" euclidian-squared
           "no-distance-function" no-distance-function))
-  
-  (set-map-parameters-distance-func! map-params (hash-ref distance-functions (send choice get-string-selection))))
+  (set-distance-applier transformer  (hash-ref distance-functions (send choice get-string-selection))))
 
 
 
-
-#|_______________________________Modulation Function Selection  Helpers_________________________________
-
-Functions that allow the user to select which modulation function to apply to the world map
-____________________________________________________________________________________________________|#
-
-
-; Define a list of noise functions
+; Define a list of modulator functions
 (define modulation-func-names
   '("composition" "sinusoidal" "linear"))
 
-(define (set-modulation-function choice event canvas)
+;Lets us get the function with user selected choice
+(define (set-modulation-function choice event canvas transformer)
   (define modulation-functions
     (hash "composition" noise-composition
           "sinusoidal" sine-noise
           "linear" linear-stuff))
-  (set-map-parameters-noise-func! map-params (hash-ref modulation-functions (send choice get-string-selection))))
+  (set-modulator transformer (hash-ref modulation-functions (send choice get-string-selection))))
 
 
-
-#|______________________________Sliders_________________________________
-
-Handles all slider action
-____________________________________________________________________________________________________|#
-
-
-
-(define (get-fudge-factor entry event)
+;Handles the sliders 
+(define (get-fudge-factor entry event transformer)
   (define factor (send entry get-value))
-  (set-map-parameters-redist-fudge! map-params (send entry get-value)))
+  (set-redist-fudge transformer (send entry get-value)))
 
 
-(define (get-expt entry event)
+(define (get-expt entry event transformer)
   (define factor (send entry get-value))
-  (set-map-parameters-redist-exp! map-params (send entry get-value)))
+  (set-redist-exp transformer (send entry get-value)))
 
 
 
 
-#|_______________________________GUI Compoents_____________________________________________________
+#|_______________________________Main Window GUI Compoents_____________________________________________________
 
-Creates the GUI components
+Creates the GUI components for the main window
 ____________________________________________________________________________________________________|#
 
 (define frame (new frame%
@@ -137,30 +102,6 @@ ________________________________________________________________________________
                      [paint-callback (lambda (canvas dc)
                                        (draw-tile-map canvas (world-map)))]))
 
-
-
-
-; Create a list-box with the noise function options
-(define distance-function-list-box
-  (new list-box%
-       [label "Select Distance Function"] ; Set the label here
-       [choices distance-func-names]
-       [parent frame]
-       [callback
-        (lambda (choice event)
-          (set-distance-function choice event canvas))]))
-
-
-; Create a list-box with the noise function options
-(define modulation-function-list-box
-  (new list-box%
-       [label "Select Modulation Function"] ; Set the label here
-       [choices modulation-func-names]
-       [parent frame]
-       [callback
-        (lambda (choice event)
-          (set-modulation-function choice event canvas))]))
-
 (define generate-new-map-button
   (new button%
        [label "Generate new map"]
@@ -170,22 +111,64 @@ ________________________________________________________________________________
           update-world-map(send canvas refresh))]))
 
 
-(define redistribution-fudge-factor
+(send frame show #t)
+
+
+#|_______________________________Elevation Parameter GUI Compoents_____________________________________________________
+
+Creates the GUI components for the main window
+____________________________________________________________________________________________________|#
+
+;GUI Portion for elevation noise parameters
+
+; Make a frame by instantiating the frame% class
+(define elevation-settings-frame (new frame% [label "Example"]))
+
+; Create a list-box with the noise function options
+(define elevation-distance-function-list-box
+  (new list-box%
+       [label "Select Elevation Distance Function"] ; Set the label here
+       [choices distance-func-names]
+       [parent elevation-settings-frame]
+       [callback
+        (lambda (choice event)
+          (set-distance-function choice event canvas elevation-transformer))]))
+
+
+; Create a list-box with the noise function options
+(define elevation-modulation-function-list-box
+  (new list-box%
+       [label "Select Elevation Modulation Function"] ; Set the label here
+       [choices modulation-func-names]
+       [parent elevation-settings-frame]
+       [callback
+        (lambda (choice event)
+          (set-modulation-function choice event canvas elevation-transformer))]))
+
+(define elevation-redistribution-fudge-factor
   (new slider%
-       [label "Redistribution Fudge Factor"]
+       [label "Elevation Redistribution Fudge Factor"]
        [min-value 0]
        [max-value 10]
-       [parent frame]
-       [callback get-fudge-factor] ))
+       [parent elevation-settings-frame]
+       [callback
+        (lambda (entry event)  (get-fudge-factor entry event elevation-transformer))]))
 
 
-(define redistribution-exponent
+(define elevation-redistribution-exponent
   (new slider%
        [label "Redistribution Exponent"]
        [min-value 0]
        [max-value 10]
-       [parent frame]
-       [callback get-expt] ))
+       [parent elevation-settings-frame]
+       [callback
+        (lambda (entry event) (get-expt entry event elevation-transformer))]))
 
 
-(send frame show #t)
+; Show the frame by calling its show method
+(send elevation-settings-frame show #t)
+
+
+
+
+
