@@ -6,7 +6,7 @@
 (require "WorldMap.rkt")
 
 
-(define elevation-noise-composition (compose-noise 1))
+(define elevation-noise-composition (compose-noise 3))
 (define moisture-noise-composition (compose-noise 3))
 
 (define elevation-transformer (create-noise-transformer no-distance-function elevation-noise-composition 1 1))
@@ -15,6 +15,10 @@
 (define (world-map) (initialize-world-map elevation-transformer moisture-transformer))
 
 (define update-world-map
+
+
+  
+
   (lambda ()
     (set! world-map (initialize-world-map elevation-transformer moisture-transformer))))
 
@@ -26,15 +30,15 @@
 ____________________________________________________________________________________________________|#
 
 
-(define elevation-modulation-functions
-  (hash "composition" elevation-noise-composition
-        "sinusoidal" sine-noise
-        "linear" linear-stuff))
+  (define elevation-modulation-functions
+    (hash "composition" elevation-noise-composition
+          "sinusoidal" sine-noise
+          "linear" linear-stuff))
 
-(define moisture-modulation-functions
-  (hash "composition" noise-composition
-        "sinusoidal" sine-noise
-        "linear" linear-stuff))
+  (define moisture-modulation-functions
+    (hash "composition" noise-composition
+          "sinusoidal" sine-noise
+          "linear" linear-stuff))
 
 
 #|_______________________________User Input Event Handlers_________________________________
@@ -55,18 +59,25 @@ ________________________________________________________________________________
   (set-distance-applier transformer  (hash-ref distance-functions (send choice get-string-selection))))
 
 
+
 ; Define a list of modulator functions
 (define modulation-func-names
   '("composition" "sinusoidal" "linear"))
 
 ;Lets us get the function with user selected choice
 (define (set-modulation-function choice event canvas transformer modulation-function-table)
-  (set-modulator transformer (hash-ref modulation-function-table (send choice get-string-selection))))
+  (set-modulator transformer (hash-ref modulation-function-table (send choice get-string-selection)))
+   ;(printf (send choice get-string-selection))
+
+
+  )
+
 
 ;Handles the sliders 
 (define (get-fudge-factor entry event transformer)
   (define factor (send entry get-value))
   (set-redist-fudge transformer (send entry get-value)))
+
 
 (define (get-expt entry event transformer)
   (define factor (send entry get-value))
@@ -85,6 +96,8 @@ ________________________________________________________________________________
                    [width (* MAP-WIDTH TILE-SIZE)]
                    [height (* MAP-HEIGHT TILE-SIZE)]
                    [alignment '(center center)]))
+
+
 
 ; Make a static text message in the frame
 (define msg (new message% [parent frame]
@@ -114,6 +127,8 @@ ________________________________________________________________________________
                      [stretchable-height #f]
                      [paint-callback (lambda (canvas dc)
                                        (draw-tile-map canvas (world-map) dc))]))
+
+
 
 
 (define generate-new-map-button
@@ -177,12 +192,6 @@ ________________________________________________________________________________
        [parent elevation-settings-frame]
        [callback
         (lambda (entry event) (get-expt entry event elevation-transformer))]))
-
-
-
-
-
-  
 
 
 ; Show the frame by calling its show method
@@ -255,7 +264,7 @@ ________________________________________________________________________________
        [parent frame]
        [callback
         (lambda (choice event) (if (send choice get-value)
-                                   (send elevation-settings-frame show #t)
+                                  (send elevation-settings-frame show #t)
                                    (send elevation-settings-frame show #f)))]))
 ;Opens the moisture settings frame
 (define open-moisture-settings
@@ -264,58 +273,34 @@ ________________________________________________________________________________
        [parent frame]
        [callback
         (lambda (choice event) (if (send choice get-value)
-                                   (send moisture-settings-frame show #t)
+                                  (send moisture-settings-frame show #t)
                                    (send moisture-settings-frame show #f)))]))
 
 
 
 
-#|_______________________________Noise Composition Input GUI compoents_____________________________________________________
+#|_______________________________Elevation Parameter GUI Compoents_____________________________________________________
 
-Creates the GUI components for Noise Composition Input
+Creates the GUI components for the main window
 ____________________________________________________________________________________________________|#
-
-
-
-;The else clause is void because nothing happens but the event handler still requires a procedure
-(define (update-composition-settings choice event text-field transformer modulator)
-  (define octave-input (send text-field get-value))
- 
-  (if (string->number octave-input)
-      (begin
-        (set! modulator (compose-noise (string->number octave-input)))
-        (set-modulator transformer modulator)) 
-      (void)))
+; Make a frame by instantiating the frame% class
 
 (define elevation-num-octaves-text-field
   (new text-field%
-       [label "Number of Octaves"]
-       [parent elevation-settings-frame]
-       [enabled #t]))
+        [label "Number of Octaves"]
+        [parent elevation-settings-frame]
+        [enabled #t]
+        ))
 
-(define update-elevation-composition-settings-button
-  (new button%
-       [label "Update Composition Settings"]
-       [parent elevation-settings-frame]
-       [callback
-         (lambda (choice event) 
-         (update-composition-settings choice event elevation-num-octaves-text-field elevation-transformer elevation-noise-composition))]))
 
 (define moisture-num-octaves-text-field
   (new text-field%
-       [label "Number of Octaves"]
-       [parent moisture-settings-frame]
-       [enabled #t] ))
-
-
-(define update-moisture-composition-settings-button
-  (new button%
-       [label "Update Composition Settings"]
-       [parent moisture-settings-frame]
-       [callback
-         (lambda (choice event) 
-         (update-composition-settings choice event moisture-num-octaves-text-field moisture-transformer moisture-noise-composition))]))
-
-      
+        [label "Number of Octaves"]
+        [parent moisture-settings-frame]
+        [enabled #t]
+        ))
         
-       
+        
+
+
+

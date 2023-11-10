@@ -6,18 +6,38 @@
 
 ;Basing the implementation on this https://www.redblobgames.com/maps/terrain-from-noise/
 
-#|________________________________Definitions_______________________________________________
+#|________________________________Definitions and Utility Functions_______________________________________________
 
-Global defs that will be used throughout the file
+Global defs and utiltiy that will be used throughout the file
 ____________________________________________________________________________________________________|#
 
 
 (define MAP-WIDTH 50)
-(define MAP-HEIGHT 50)
+(define MAP-HEIGHT 50 )
 (define TILE-SIZE 8)
+
 
 (define (get-seed)
   (current-inexact-milliseconds))
+
+
+
+
+;Creates a hash table containing images
+;The key is the file location and the value is the image
+(define (build-tile-images)
+  
+  (define image-files
+    (directory-list "tiles" #:build? #T))
+  
+  (define img-table (make-hash))
+  
+  (for/list ([img-path image-files])
+    (hash-set! img-table (path->string img-path)  (read-bitmap img-path)))
+  img-table)
+
+
+(define image-table (build-tile-images))
 
 
 
@@ -29,31 +49,44 @@ ________________________________________________________________________________
 
 ;Don't know where I got the tile PNGs from, can't reference the source
 ;Returns the png for a noise value
-(define (get-biome-data2 elevation-value moisture-value)
+(define (get-biome-data elevation-value moisture-value)
   (cond
     [(< elevation-value 0.1) (cons "ocean" "tiles\\water.png")]
-    [(< elevation-value 0.12) (cons "ocean" "tiles\\beach.png")]
-    [(< elevation-value 0.12) (cons "ocean" "tiles\\beach.png")]
+    [(< elevation-value 0.12) (cons "beach" "tiles\\beach.png")]
     
-    [(< elevation-value 0.8)
+    [(> elevation-value 0.8)
+     (cond
+       [(< moisture-value 0.1) (cons "scorched" "tiles\\scorched.png") ]
+       [(< moisture-value 0.2) (cons "bare" "tiles\\bare.png")]
+       [(< moisture-value 0.5) (cons "tundra" "tiles\\tundra.png")]
+       [else (cons "snow" "tiles\\snow.png")])]
 
-    ;  (cond
-    ;    [(< moisture-value 0.1) (cons "scorched" "tiles\\scorched.png")]
-    ;   [(< moisture-value 0.1) (cons "bare" "tiles\\bare.png")]
-    ;   [(< moisture-value 0.1) (cons "tundra" "tiles\\tundra.png")]
-    ;    else (cons "snow" "tiles\\snow.png"))]
-    ;
+    [(> elevation-value 0.6)
+     (cond
+       [(< moisture-value 0.33) (cons "temperatedesert" "tiles\\desert.png") ]
+       [(< moisture-value 0.66) (cons "shrubland" "tiles\\shrubland.png")]
+       [else (cons "desertland" "tiles\\taiga.png")])]
 
-   
-    [(< elevation-value 0.5) (cons "jungle" "tiles\\tree2.png")]
-    [(< elevation-value 0.7) (cons "taiga" "tiles\\shrubland.png")]
-    [(< elevation-value 0.9) (cons "desert" "tiles\\desert.png")]
-    [else  (cons "snowlands" "tiles\\bare.png")]))
+
+          
+    [(> elevation-value 0.3)
+     (cond
+       [(< moisture-value 0.16) (cons "temperatedeesert" "tiles\\beach.png") ]
+       [(< moisture-value 0.50) (cons "grassland" "tiles\\grassland.png")]
+       [(< moisture-value 0.83) (cons "temperatedecidiousforest" "tiles\\forest.png")]
+       [else (cons "temperaterainforest" "tiles\\tree2.png")])]
+
+    [(< moisture-value 0.16) (cons "subtropicaldesert" "tiles\\beach.png") ]
+    [(< moisture-value 0.33) (cons "grassland" "tiles\\grassland.png") ]
+    [(< moisture-value 0.66) (cons "tropicalseasonalforest" "tiles\\forest.png") ]    
+
+  
+    [else  (cons "tropicalrainforest" "tiles\\tree2.png")]))
 
 
 
 ;Returns the png for a noise value
-(define (get-biome-data elevation-value moisture-value)
+(define (get-biome-data-no-moisture elevation-value moisture-value)
   (cond
     [(< elevation-value 0.1) (cons "ocean" "tiles\\water.png")]
     [(< elevation-value 0.2) (cons "beach" "tiles\\beach.png")]
@@ -95,10 +128,6 @@ _______________________________________________________________|#
 ;Has a list of amplitudes and octaves which use in compose-noise
 ;Where we iterate over the list of amplitude and octaves
 (struct noise-composition-params (amplitudes octaves total-amplitude ))
-
-
-
-
 
 ;Composes the noise by adding several noise sources together using octaves and amplitudes.
 ;Adds an offset through a seed so we don't get the same valeu every time.
@@ -167,15 +196,15 @@ _________________________________________________________________________|#
 
      (let ([linear-x (linear-noise x slope)]
            [linear-y (linear-noise y slope)])
-       (abs (simplex (+ (+ linear-x) (get-seed)) (+ (+ y linear-y) (get-seed))))))))
+       (abs (perlin (+ (+ linear-x) (get-seed)) (+ (+ y linear-y) (get-seed))))))))
 
 ;Gets an x and y sample from a sinusoid to buiild nose
 (define (sine-modulated-noise start-deg end-deg min max)
 
 
   ;We need values to sample from. 
-  (define width-sample-space (linspace 0  100 MAP-WIDTH))
-  (define height-sample-space (linspace 0 100  MAP-HEIGHT))
+  (define width-sample-space (linspace 0  1000 MAP-WIDTH))
+  (define height-sample-space (linspace 0 1000  MAP-HEIGHT))
 
   
   (modulator
@@ -229,7 +258,6 @@ ________________________________________________________________________________
 (define (create-noise-transformer distance-applier modulator redist-furge redist-exp)
   (noise-transformer  distance-applier modulator redist-furge redist-exp))
 
-
 (define (get-distance-applier transformer) (noise-transformer-distance-applier transformer))
 (define (get-modulator transformer) (noise-transformer-modulator transformer))
 (define (get-redist-fudge transformer) (noise-transformer-redist-fudge transformer))
@@ -248,15 +276,13 @@ ________________________________________________________________________________
   (define final-noise (apply-reshape (get-distance-applier transformer) nx ny temp-noise))
   final-noise)
 
-
-
 ;A struct to store the modulator function so we can use a closure for variable args
 (struct modulator (function))
 (define (noise-at modulator x y)
   ((modulator-function modulator) x y))
 
 ;Current modulator functions
-(define noise-composition (compose-noise 16))
+(define noise-composition (compose-noise 3))
 (define linear-stuff (linear-modulated-noise 1 1 2))
 (define sine-noise (sine-modulated-noise 0 360 1 100))
 
@@ -290,12 +316,12 @@ ________________________________________________________________________________
 ;Travereses the map and chooses which tile to draw
 ;Selects a tile based off a noise value.
 ;Doesn't send the tile we draw to the canvas, that's handled by draw-tile-png
-(define (draw-tile-map canvas world-map)
+;Looking up the image in a hash table so we don't ahve to create it multiple times
+(define (draw-tile-map canvas world-map dc)
   (define (draw-tile-png dc x y image-path) ;Sends the drawing command to the canvas
-    (define image (read-bitmap image-path))
-    (send dc draw-bitmap image x y))
+    (send dc draw-bitmap (hash-ref image-table image-path) x y))
 
-  (define dc (send canvas get-dc))
+  ;(define dc (send canvas get-dc))
   (for* ([x (in-range MAP-WIDTH)]
          [y (in-range MAP-HEIGHT)])
     (define tile (get-tile world-map x y))
@@ -303,6 +329,11 @@ ________________________________________________________________________________
                    (hash-ref tile 'tile-width)
                    (hash-ref tile 'tile-height)
                    (get-biome-png tile))))
+
+
+
+
+
 
 ;Returns the hash table at the coordinates
 (define (get-tile grid x y)
@@ -332,6 +363,7 @@ ________________________________________________________________________________
 
 ;Creates the world map using a noise function
 (define (initialize-world-map elevation-transformer moisture-transformer)
+
   (define world-map (make-vector MAP-WIDTH))
   (for ([x-cord (in-range MAP-WIDTH)])
     (define row (make-vector MAP-HEIGHT))
@@ -342,6 +374,7 @@ ________________________________________________________________________________
 
     (vector-set! world-map x-cord row))
   world-map)
+
 
 
 (provide (all-defined-out))
