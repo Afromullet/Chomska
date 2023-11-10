@@ -26,17 +26,23 @@
 ____________________________________________________________________________________________________|#
 
 
-(define elevation-modulation-functions
-  (hash "composition" elevation-noise-composition
-        "sinusoidal" sine-noise
-        "linear" linear-stuff))
+;Selects the appropriate modulation function table based on the input
+(define (get-modulation-func-table type)
 
-(define moisture-modulation-functions
-  (hash "composition" noise-composition
-        "sinusoidal" sine-noise
-        "linear" linear-stuff))
+  (define elevation-modulation-functions
+    (hash "composition" elevation-noise-composition
+          "sinusoidal" sine-noise
+          "linear" linear-stuff))
 
-
+  (define moisture-modulation-functions
+    (hash "composition" noise-composition
+          "sinusoidal" sine-noise
+          "linear" linear-stuff))
+  (cond
+    [ (eq? type "elevation") elevation-modulation-functions]
+    [ (eq? type "moisture") moisture-modulation-functions]
+    [else (void)]))
+    
 #|_______________________________User Input Event Handlers_________________________________
 
 Handles user inptu events
@@ -63,16 +69,26 @@ ________________________________________________________________________________
 (define (set-modulation-function choice event canvas transformer modulation-function-table)
   (set-modulator transformer (hash-ref modulation-function-table (send choice get-string-selection))))
 
-;Handles the sliders 
-(define (get-fudge-factor entry event transformer)
-  (define factor (send entry get-value))
-  (set-redist-fudge transformer (send entry get-value)))
 
-(define (get-expt entry event transformer)
-  (define factor (send entry get-value))
-  (set-redist-exp transformer (send entry get-value)))
+;I want to keep things grouped together as much as possible
+;This is to select which kind of distance function parameter to modify
+(define (set-distance-function-parameter type)
+
+  (define (set-fudge-factor entry event transformer)
+    (define factor (send entry get-value))
+    (set-redist-fudge transformer (send entry get-value)))
+
+  (define (set-expt entry event transformer)
+    (define factor (send entry get-value))
+    (set-redist-exp transformer (send entry get-value)))
 
 
+  (cond
+    [ (eq? type "fudge") set-fudge-factor]
+    [ (eq? type "expt") set-expt]
+    [else (void)]))
+
+  
 
 
 #|_______________________________Main Window GUI Compoents_____________________________________________________
@@ -106,7 +122,8 @@ ________________________________________________________________________________
     ; Call the superclass init, passing on all init args
     (super-new)))
       
-(define canvas (new  my-canvas%
+(define canvas
+  (new  my-canvas%
                      [parent frame]
                      [min-width (* MAP-WIDTH TILE-SIZE)]
                      [min-height (* MAP-HEIGHT TILE-SIZE)]
@@ -114,6 +131,7 @@ ________________________________________________________________________________
                      [stretchable-height #f]
                      [paint-callback (lambda (canvas dc)
                                        (draw-tile-map canvas (world-map) dc))]))
+
 
 
 (define generate-new-map-button
@@ -130,10 +148,9 @@ ________________________________________________________________________________
 
 #|_______________________________Elevation Parameter GUI Compoents_____________________________________________________
 
-Creates the GUI components for the main window
+GUI Portion for elevation noise parameters
 ____________________________________________________________________________________________________|#
 
-;GUI Portion for elevation noise parameters
 
 ; Make a frame by instantiating the frame% class
 (define elevation-settings-frame (new frame% [label "Example"]))
@@ -157,7 +174,7 @@ ________________________________________________________________________________
        [parent elevation-settings-frame]
        [callback
         (lambda (choice event)
-          (set-modulation-function choice event canvas elevation-transformer elevation-modulation-functions))]))
+          (set-modulation-function choice event canvas elevation-transformer (get-modulation-func-table "elevation")))]))
 
 (define elevation-redistribution-fudge-factor
   (new slider%
@@ -166,7 +183,9 @@ ________________________________________________________________________________
        [max-value 10]
        [parent elevation-settings-frame]
        [callback
-        (lambda (entry event)  (get-fudge-factor entry event elevation-transformer))]))
+        (lambda (entry event)
+          ((set-distance-function-parameter "fudge")
+           entry event elevation-transformer))]))
 
 
 (define elevation-redistribution-exponent
@@ -176,24 +195,19 @@ ________________________________________________________________________________
        [max-value 10]
        [parent elevation-settings-frame]
        [callback
-        (lambda (entry event) (get-expt entry event elevation-transformer))]))
-
-
-
-
-
-  
-
+        (lambda (entry event)
+          ((set-distance-function-parameter "expt")
+           entry event elevation-transformer))]))
 
 ; Show the frame by calling its show method
 (send elevation-settings-frame show #f)
 
 #|_______________________________moisture Parameter GUI Compoents_____________________________________________________
 
-Creates the GUI components for the main window
-____________________________________________________________________________________________________|#
 
 ;GUI Portion for moisture noise parameters
+____________________________________________________________________________________________________|#
+
 
 ; Make a frame by instantiating the frame% class
 (define moisture-settings-frame (new frame% [label "Example"]))
@@ -217,7 +231,7 @@ ________________________________________________________________________________
        [parent moisture-settings-frame]
        [callback
         (lambda (choice event)
-          (set-modulation-function choice event canvas moisture-transformer moisture-modulation-functions))]))
+          (set-modulation-function choice event canvas moisture-transformer (get-modulation-func-table "moisture")))]))
 
 (define moisture-redistribution-fudge-factor
   (new slider%
@@ -226,7 +240,9 @@ ________________________________________________________________________________
        [max-value 10]
        [parent moisture-settings-frame]
        [callback
-        (lambda (entry event)  (get-fudge-factor entry event moisture-transformer))]))
+        (lambda (entry event)
+          ((set-distance-function-parameter "fudge")
+           entry event moisture-transformer))]))
 
 
 (define moisture-redistribution-exponent
@@ -236,7 +252,9 @@ ________________________________________________________________________________
        [max-value 10]
        [parent moisture-settings-frame]
        [callback
-        (lambda (entry event) (get-expt entry event moisture-transformer))]))
+        (lambda (entry event)
+          ((set-distance-function-parameter "expt")
+           entry event moisture-transformer))]))
 
 
 ; Show the frame by calling its show method
@@ -298,8 +316,8 @@ ________________________________________________________________________________
        [label "Update Composition Settings"]
        [parent elevation-settings-frame]
        [callback
-         (lambda (choice event) 
-         (update-composition-settings choice event elevation-num-octaves-text-field elevation-transformer elevation-noise-composition))]))
+        (lambda (choice event) 
+          (update-composition-settings choice event elevation-num-octaves-text-field elevation-transformer elevation-noise-composition))]))
 
 (define moisture-num-octaves-text-field
   (new text-field%
@@ -313,9 +331,8 @@ ________________________________________________________________________________
        [label "Update Composition Settings"]
        [parent moisture-settings-frame]
        [callback
-         (lambda (choice event) 
-         (update-composition-settings choice event moisture-num-octaves-text-field moisture-transformer moisture-noise-composition))]))
+        (lambda (choice event) 
+          (update-composition-settings choice event moisture-num-octaves-text-field moisture-transformer moisture-noise-composition))]))
 
       
         
-       
