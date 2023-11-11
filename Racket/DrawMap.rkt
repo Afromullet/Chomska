@@ -6,7 +6,7 @@
 (require "WorldMap.rkt")
 
 
-(define elevation-noise-composition (compose-noise 1))
+(define elevation-noise-composition (compose-noise 3))
 (define moisture-noise-composition (compose-noise 3))
 
 (define elevation-transformer (create-noise-transformer no-distance-function elevation-noise-composition 1 1))
@@ -27,6 +27,7 @@ ________________________________________________________________________________
 
 
 ;Selects the appropriate modulation function table based on the input
+;Elevation and moisture keep track of their own functions, so we have two hash tables
 (define (get-modulation-func-table type)
 
   (define elevation-modulation-functions
@@ -58,7 +59,10 @@ ________________________________________________________________________________
     (hash "square-bump" square-bump
           "euclidian-squared" euclidian-squared
           "no-distance-function" no-distance-function))
-  (set-distance-applier transformer  (hash-ref distance-functions (send choice get-string-selection))))
+ (set-distance-applier transformer  (hash-ref distance-functions (send choice get-string-selection))))
+  
+
+
 
 
 ; Define a list of modulator functions
@@ -244,7 +248,6 @@ ________________________________________________________________________________
           ((set-distance-function-parameter "fudge")
            entry event moisture-transformer))]))
 
-
 (define moisture-redistribution-exponent
   (new slider%
        [label "Redistribution Exponent"]
@@ -284,8 +287,6 @@ ________________________________________________________________________________
         (lambda (choice event) (if (send choice get-value)
                                    (send moisture-settings-frame show #t)
                                    (send moisture-settings-frame show #f)))]))
-
-
 
 
 #|_______________________________Noise Composition Input GUI compoents_____________________________________________________

@@ -161,8 +161,11 @@ _______________________________________________________________|#
     (/ noise-value total-amplitude))
 
   (define (generate-octave-noise amplitude octave x y) ;Divides by the map width and height so we get values between 0-1
-    (* amplitude (abs(perlin (* octave (/ x MAP-WIDTH))
-                             (* octave (/ y MAP-HEIGHT))))))
+
+    (define nx (/ x MAP-WIDTH))
+    (define ny (/ y MAP-WIDTH))
+    (* amplitude (abs(perlin  (* octave nx) 
+                             (* octave ny)))))
   
   (modulator (lambda (x y)
            
@@ -170,9 +173,11 @@ _______________________________________________________________|#
                  (for/list ([amp (noise-composition-params-amplitudes source)]
                             [oct (noise-composition-params-octaves source)])
                    (generate-octave-noise amp oct (+ x (get-seed)) (+ y (get-seed)))))
-           
-               (define normalized-noise (normalize-composition-noise (foldl + 0 noise-values) (noise-composition-params-total-amplitude source)))
-               normalized-noise)))
+
+               (set! noise-values (apply + noise-values))
+    
+               ;(normalize-composition-noise noise-values (noise-composition-params-total-amplitude source)))))
+               noise-values)))
 
 
 
@@ -258,6 +263,8 @@ ________________________________________________________________________________
 (define (create-noise-transformer distance-applier modulator redist-furge redist-exp)
   (noise-transformer  distance-applier modulator redist-furge redist-exp))
 
+
+
 (define (get-distance-applier transformer) (noise-transformer-distance-applier transformer))
 (define (get-modulator transformer) (noise-transformer-modulator transformer))
 (define (get-redist-fudge transformer) (noise-transformer-redist-fudge transformer))
@@ -268,13 +275,7 @@ ________________________________________________________________________________
 (define (set-redist-fudge transformer redist-fudge) (set-noise-transformer-redist-fudge! transformer redist-fudge))
 (define (set-redist-exp transformer redist-expt) (set-noise-transformer-redist-expt! transformer redist-expt))
 
-;Applies the transformation to the noise at x,y
-(define (transform-noise transformer x y)
-  (define nx (- (/ (* 2 x) MAP-WIDTH) 1))
-  (define ny (- (/ (* 2 y) MAP-HEIGHT) 1))
-  (define temp-noise (expt (* (noise-at (get-modulator transformer) x y) (get-redist-fudge transformer) ) (get-redist-expt transformer)))
-  (define final-noise (apply-reshape (get-distance-applier transformer) nx ny temp-noise))
-  final-noise)
+
 
 ;A struct to store the modulator function so we can use a closure for variable args
 (struct modulator (function))
@@ -295,6 +296,8 @@ ________________________________________________________________________________
 
 (define (distance-squared x y)
   (- 1 (+ (expt x 2) (expt y 2))))
+
+
 
 (define (no-distance-function x y) 1)
 
@@ -331,10 +334,6 @@ ________________________________________________________________________________
                    (get-biome-png tile))))
 
 
-
-
-
-
 ;Returns the hash table at the coordinates
 (define (get-tile grid x y)
   (vector-ref (vector-ref grid x) y))
@@ -352,8 +351,17 @@ ________________________________________________________________________________
 ;The expt calculation for the temp noise. We use Math.pow(e * fudge_factor, exponent),
 (define (create-noise-tile x-cord y-cord elevation-transformer moisture-transformer)
 
+  ;Applies the transformation to the noise at x,y
+  (define (transform-noise transformer x y)
+    (define nx (- (/ (* 2 x) MAP-WIDTH) 1))
+    (define ny (- (/ (* 2 y) MAP-HEIGHT) 1))
+    (define temp-noise (expt (* (noise-at (get-modulator transformer) x y) (get-redist-fudge transformer) ) (get-redist-expt transformer)))
+    (define final-noise (apply-reshape (get-distance-applier transformer) nx ny temp-noise))
+    final-noise)
+
   (define elevation-noise (transform-noise elevation-transformer x-cord y-cord))
   (define moisture-noise (transform-noise moisture-transformer x-cord y-cord))
+  
   (hash 'x x-cord
         'y y-cord
         'tile-width (* x-cord TILE-SIZE)
