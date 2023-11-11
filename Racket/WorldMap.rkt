@@ -20,9 +20,6 @@ ________________________________________________________________________________
 (define (get-seed)
   (current-inexact-milliseconds))
 
-
-
-
 ;Creates a hash table containing images
 ;The key is the file location and the value is the image
 (define (build-tile-images)

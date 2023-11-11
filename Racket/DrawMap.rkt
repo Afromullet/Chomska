@@ -8,6 +8,11 @@
 
 (define elevation-noise-composition (compose-noise 3))
 (define moisture-noise-composition (compose-noise 3))
+(define sine-noise (sine-modulated-noise 0 360 1 100))
+
+
+
+(define elevation-sine-modulation (sine-modulated-noise 0 360 1 100))
 
 (define elevation-transformer (create-noise-transformer no-distance-function elevation-noise-composition 1 1))
 (define moisture-transformer (create-noise-transformer no-distance-function moisture-noise-composition 1 1))
@@ -86,7 +91,6 @@ ________________________________________________________________________________
     (define factor (send entry get-value))
     (set-redist-exp transformer (send entry get-value)))
 
-
   (cond
     [ (eq? type "fudge") set-fudge-factor]
     [ (eq? type "expt") set-expt]
@@ -159,6 +163,8 @@ ________________________________________________________________________________
 ; Make a frame by instantiating the frame% class
 (define elevation-settings-frame (new frame% [label "Example"]))
 
+
+#|
 ; Create a list-box with the noise function options
 (define elevation-distance-function-list-box
   (new list-box%
@@ -168,6 +174,7 @@ ________________________________________________________________________________
        [callback
         (lambda (choice event)
           (set-distance-function choice event canvas elevation-transformer))]))
+|#
 
 
 ; Create a list-box with the noise function options
@@ -203,8 +210,77 @@ ________________________________________________________________________________
           ((set-distance-function-parameter "expt")
            entry event elevation-transformer))]))
 
+
+
 ; Show the frame by calling its show method
 (send elevation-settings-frame show #f)
+
+
+
+#|_______________________________Sine Modulation Input GUI compoents_____________________________________________________
+
+Creates the GUI components for Sone Modulation Input
+____________________________________________________________________________________________________|#
+
+;The else clause is void because nothing happens but the event handler still requires a procedure
+(define (update-sine-settings choice event text-field transformer modulator)
+  (define octave-input (send text-field get-value))
+ 
+  (if (string->number octave-input)
+      (begin
+        ;(set! modulator (compose-noise (string->number octave-input)))
+        (set-modulator transformer modulator)) 
+      (void)))
+
+
+(define elevation-menu-bar
+  (new menu-bar%
+       [parent elevation-settings-frame]
+       ))
+
+(define elevation-sine-menu
+  (new menu%
+       [label "Sine Modulation Settings"]
+       [parent elevation-menu-bar]
+       [demand-callback
+        (lambda (m) (send elevation-setting-frames show #t))]
+       ))
+
+          
+
+
+
+; Make a frame by instantiating the frame% class
+(define elevation-setting-frames (new frame% [label "Example"]))
+
+
+(define sine-min-freq-textbox
+  (new text-field%
+       [label "Min Freq"]
+       [parent elevation-setting-frames]))
+
+(define sine-max-freq-textbox
+  (new text-field%
+       [label "Max Freq"]
+       [parent elevation-setting-frames]))
+
+(define sine-start-deg-freq-textbox
+  (new text-field%
+       [label "Start Deg"]
+       [parent elevation-setting-frames]))
+
+(define sine-stop-deg-freq-textbox
+  (new text-field%
+       [label "Stop Deg"]
+       [parent elevation-setting-frames]))
+
+(define store-sine-settings-button
+  (new button%
+       [label "Store Sine Settings"]
+       [parent elevation-setting-frames]))
+
+
+;(define sine-setting-textbox
 
 #|_______________________________moisture Parameter GUI Compoents_____________________________________________________
 
@@ -216,6 +292,7 @@ ________________________________________________________________________________
 ; Make a frame by instantiating the frame% class
 (define moisture-settings-frame (new frame% [label "Example"]))
 
+#|
 ; Create a list-box with the noise function options
 (define moisture-distance-function-list-box
   (new list-box%
@@ -225,7 +302,7 @@ ________________________________________________________________________________
        [callback
         (lambda (choice event)
           (set-distance-function choice event canvas moisture-transformer))]))
-
+|#
 
 ; Create a list-box with the noise function options
 (define moisture-modulation-function-list-box
@@ -295,7 +372,7 @@ Creates the GUI components for Noise Composition Input
 ____________________________________________________________________________________________________|#
 
 
-
+;todo
 ;The else clause is void because nothing happens but the event handler still requires a procedure
 (define (update-composition-settings choice event text-field transformer modulator)
   (define octave-input (send text-field get-value))
@@ -334,6 +411,27 @@ ________________________________________________________________________________
        [callback
         (lambda (choice event) 
           (update-composition-settings choice event moisture-num-octaves-text-field moisture-transformer moisture-noise-composition))]))
+
+
+
+
+(define (create-distance-function-list-box label parent transformer)
+  (new list-box%
+       [label label]
+       [choices distance-func-names]
+       [parent parent]
+       [callback
+        (lambda (choice event)
+          (set-distance-function choice event canvas transformer))]))
+
+(define moisture-distance-function-list-box
+  (create-distance-function-list-box "Select moisture Distance Function" moisture-settings-frame moisture-transformer))
+
+(define elevation-distance-function-list-box
+  (create-distance-function-list-box "Select Elevation Distance Function" elevation-settings-frame elevation-transformer))
+
+
+
 
       
         
