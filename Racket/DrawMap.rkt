@@ -10,26 +10,24 @@
 (define moisture-noise-composition (compose-noise 3))
 (define sine-noise (sine-modulated-noise 0 360 1 100))
 
-
-
 (define elevation-sine-modulation (sine-modulated-noise 0 360 1 100))
 
-(define elevation-transformer (create-noise-transformer no-distance-function elevation-noise-composition 1 1))
-(define moisture-transformer (create-noise-transformer no-distance-function moisture-noise-composition 1 1))
+(define elevation-transformer (create-noise-transformer "elevation" no-distance-function elevation-noise-composition 1 1))
+(define moisture-transformer (create-noise-transformer "moisture" no-distance-function moisture-noise-composition 1 1))
 
 (define (world-map) (initialize-world-map elevation-transformer moisture-transformer))
+              
+                 
 
 (define update-world-map
-  (lambda ()
-    (set! world-map (initialize-world-map elevation-transformer moisture-transformer))))
+  (lambda () (set! world-map (initialize-world-map elevation-transformer moisture-transformer))))
+    
 
+;;;;;;;;;;Handles Modulation Function Selection;;;;;;;;;;
 
-
-#|_______________________________Function lookup tables for elevation and moisture________________________________
-
-
-____________________________________________________________________________________________________|#
-
+; Define a list of modulator functions
+(define modulation-func-names
+  '("composition" "sinusoidal" "linear"))
 
 ;Selects the appropriate modulation function table based on the input
 ;Elevation and moisture keep track of their own functions, so we have two hash tables
@@ -48,13 +46,10 @@ ________________________________________________________________________________
     [ (eq? type "elevation") elevation-modulation-functions]
     [ (eq? type "moisture") moisture-modulation-functions]
     [else (void)]))
-    
-#|_______________________________User Input Event Handlers_________________________________
+   
 
-Handles user inptu events
-____________________________________________________________________________________________________|#
+;;;;;;;;;;;Handles Distance Function Selection;;;;;;;;;;
 
-; Define a list of distance functions
 (define distance-func-names
   '("square-bump" "euclidian-squared" "no-distance-function"))
 
@@ -65,19 +60,10 @@ ________________________________________________________________________________
           "euclidian-squared" euclidian-squared
           "no-distance-function" no-distance-function))
  (set-distance-applier transformer  (hash-ref distance-functions (send choice get-string-selection))))
-  
-
-
-
-
-; Define a list of modulator functions
-(define modulation-func-names
-  '("composition" "sinusoidal" "linear"))
-
+ 
 ;Lets us get the function with user selected choice
 (define (set-modulation-function choice event canvas transformer modulation-function-table)
   (set-modulator transformer (hash-ref modulation-function-table (send choice get-string-selection))))
-
 
 ;I want to keep things grouped together as much as possible
 ;This is to select which kind of distance function parameter to modify
@@ -96,13 +82,8 @@ ________________________________________________________________________________
     [ (eq? type "expt") set-expt]
     [else (void)]))
 
-  
-
-
-#|_______________________________Main Window GUI Compoents_____________________________________________________
-
-Creates the GUI components for the main window
-____________________________________________________________________________________________________|#
+ 
+;;;;;;;;;; Main GUI window components ;;;;;;;;;;
 
 (define frame (new frame%
                    [label "Tile Map Example"]
@@ -140,8 +121,6 @@ ________________________________________________________________________________
                      [paint-callback (lambda (canvas dc)
                                        (draw-tile-map canvas (world-map) dc))]))
 
-
-
 (define generate-new-map-button
   (new button%
        [label "Generate new map"]
@@ -151,200 +130,35 @@ ________________________________________________________________________________
           update-world-map(send canvas refresh))]))
 
 
+
+;;;;;;;;;; Creaters the menu Frames ;;;;;;;;;;
+
+(define elevation-setting-frames (new frame% [label "Elevation"]))
+
+(define elevation-modulation-function-frame (new frame% [label "Elevation Mod"]))
+
+(define elevation-distance-frame (new frame% [label "Elevation"]))
+
+(define elevation-sine-settings-frames (new frame% [label "Elevation"]))
+
+(define elevation-composition-settings-frames (new frame% [label "Elevation"]))
+
+(define moisture-settings-frame (new frame% [label "Moisture"]))
+
+(define moisture-composition-settings-frames (new frame% [label "Moisture"]))
+
 (send frame show #t)
 
-
-#|_______________________________Elevation Parameter GUI Compoents_____________________________________________________
-
-GUI Portion for elevation noise parameters
-____________________________________________________________________________________________________|#
-
-
-; Make a frame by instantiating the frame% class
-(define elevation-settings-frame (new frame% [label "Example"]))
-
-
-#|
-; Create a list-box with the noise function options
-(define elevation-distance-function-list-box
-  (new list-box%
-       [label "Select Elevation Distance Function"] ; Set the label here
-       [choices distance-func-names]
-       [parent elevation-settings-frame]
-       [callback
-        (lambda (choice event)
-          (set-distance-function choice event canvas elevation-transformer))]))
-|#
-
-
-; Create a list-box with the noise function options
-(define elevation-modulation-function-list-box
-  (new list-box%
-       [label "Select Elevation Modulation Function"] ; Set the label here
-       [choices modulation-func-names]
-       [parent elevation-settings-frame]
-       [callback
-        (lambda (choice event)
-          (set-modulation-function choice event canvas elevation-transformer (get-modulation-func-table "elevation")))]))
-
-(define elevation-redistribution-fudge-factor
-  (new slider%
-       [label "Elevation Redistribution Fudge Factor"]
-       [min-value 0]
-       [max-value 10]
-       [parent elevation-settings-frame]
-       [callback
-        (lambda (entry event)
-          ((set-distance-function-parameter "fudge")
-           entry event elevation-transformer))]))
-
-
-(define elevation-redistribution-exponent
-  (new slider%
-       [label "Redistribution Exponent"]
-       [min-value 0]
-       [max-value 10]
-       [parent elevation-settings-frame]
-       [callback
-        (lambda (entry event)
-          ((set-distance-function-parameter "expt")
-           entry event elevation-transformer))]))
-
-
-
-; Show the frame by calling its show method
-(send elevation-settings-frame show #f)
-
-
-
-#|_______________________________Sine Modulation Input GUI compoents_____________________________________________________
-
-Creates the GUI components for Sone Modulation Input
-____________________________________________________________________________________________________|#
-
-;The else clause is void because nothing happens but the event handler still requires a procedure
-(define (update-sine-settings choice event text-field transformer modulator)
-  (define octave-input (send text-field get-value))
- 
-  (if (string->number octave-input)
-      (begin
-        ;(set! modulator (compose-noise (string->number octave-input)))
-        (set-modulator transformer modulator)) 
-      (void)))
-
-
-(define elevation-menu-bar
-  (new menu-bar%
-       [parent elevation-settings-frame]
-       ))
-
-(define elevation-sine-menu
-  (new menu%
-       [label "Sine Modulation Settings"]
-       [parent elevation-menu-bar]
-       [demand-callback
-        (lambda (m) (send elevation-setting-frames show #t))]
-       ))
-
-          
-
-
-
-; Make a frame by instantiating the frame% class
-(define elevation-setting-frames (new frame% [label "Example"]))
-
-
-(define sine-min-freq-textbox
-  (new text-field%
-       [label "Min Freq"]
-       [parent elevation-setting-frames]))
-
-(define sine-max-freq-textbox
-  (new text-field%
-       [label "Max Freq"]
-       [parent elevation-setting-frames]))
-
-(define sine-start-deg-freq-textbox
-  (new text-field%
-       [label "Start Deg"]
-       [parent elevation-setting-frames]))
-
-(define sine-stop-deg-freq-textbox
-  (new text-field%
-       [label "Stop Deg"]
-       [parent elevation-setting-frames]))
-
-(define store-sine-settings-button
-  (new button%
-       [label "Store Sine Settings"]
-       [parent elevation-setting-frames]))
-
-
-;(define sine-setting-textbox
-
-#|_______________________________moisture Parameter GUI Compoents_____________________________________________________
-
-
-;GUI Portion for moisture noise parameters
-____________________________________________________________________________________________________|#
-
-
-; Make a frame by instantiating the frame% class
-(define moisture-settings-frame (new frame% [label "Example"]))
-
-#|
-; Create a list-box with the noise function options
-(define moisture-distance-function-list-box
-  (new list-box%
-       [label "Select moisture Distance Function"] ; Set the label here
-       [choices distance-func-names]
-       [parent moisture-settings-frame]
-       [callback
-        (lambda (choice event)
-          (set-distance-function choice event canvas moisture-transformer))]))
-|#
-
-; Create a list-box with the noise function options
-(define moisture-modulation-function-list-box
-  (new list-box%
-       [label "Select moisture Modulation Function"] ; Set the label here
-       [choices modulation-func-names]
-       [parent moisture-settings-frame]
-       [callback
-        (lambda (choice event)
-          (set-modulation-function choice event canvas moisture-transformer (get-modulation-func-table "moisture")))]))
-
-(define moisture-redistribution-fudge-factor
-  (new slider%
-       [label "moisture Redistribution Fudge Factor"]
-       [min-value 0]
-       [max-value 10]
-       [parent moisture-settings-frame]
-       [callback
-        (lambda (entry event)
-          ((set-distance-function-parameter "fudge")
-           entry event moisture-transformer))]))
-
-(define moisture-redistribution-exponent
-  (new slider%
-       [label "Redistribution Exponent"]
-       [min-value 0]
-       [max-value 10]
-       [parent moisture-settings-frame]
-       [callback
-        (lambda (entry event)
-          ((set-distance-function-parameter "expt")
-           entry event moisture-transformer))]))
-
-
-; Show the frame by calling its show method
 (send moisture-settings-frame show #f)
 
+(send elevation-setting-frames show #f)
 
-#|_______________________________GUI Components to Enable/Disable Windows_____________________________________________________
+(send elevation-distance-frame show #f)
 
 
-____________________________________________________________________________________________________|#
+
+
+;;;;;;;;;; Checkbox to choose which Windows to open ;;;;;;;;;;
 
 ;Opens the elevation settings frame
 (define open-elevation-settings
@@ -353,8 +167,8 @@ ________________________________________________________________________________
        [parent frame]
        [callback
         (lambda (choice event) (if (send choice get-value)
-                                   (send elevation-settings-frame show #t)
-                                   (send elevation-settings-frame show #f)))]))
+                                   (send elevation-setting-frames show #t)
+                                   (send elevation-setting-frames show #f)))]))
 ;Opens the moisture settings frame
 (define open-moisture-settings
   (new check-box%
@@ -366,10 +180,7 @@ ________________________________________________________________________________
                                    (send moisture-settings-frame show #f)))]))
 
 
-#|_______________________________Noise Composition Input GUI compoents_____________________________________________________
-
-Creates the GUI components for Noise Composition Input
-____________________________________________________________________________________________________|#
+;;;;;;;;;; Data Update Handling ;;;;;;;;;;
 
 
 ;todo
@@ -383,19 +194,20 @@ ________________________________________________________________________________
         (set-modulator transformer modulator)) 
       (void)))
 
-(define elevation-num-octaves-text-field
-  (new text-field%
-       [label "Number of Octaves"]
-       [parent elevation-settings-frame]
-       [enabled #t]))
 
-(define update-elevation-composition-settings-button
-  (new button%
-       [label "Update Composition Settings"]
-       [parent elevation-settings-frame]
-       [callback
-        (lambda (choice event) 
-          (update-composition-settings choice event elevation-num-octaves-text-field elevation-transformer elevation-noise-composition))]))
+;The else clause is void because nothing happens but the event handler still requires a procedure
+(define (update-sine-settings choice event text-field transformer modulator)
+  (define octave-input (send text-field get-value))
+ 
+  (if (string->number octave-input)
+      (begin
+        ;(set! modulator (compose-noise (string->number octave-input)))
+        (set-modulator transformer modulator)) 
+      (void)))
+
+
+
+;;;;;;;;;; Will be removed once menu stuff is finished
 
 (define moisture-num-octaves-text-field
   (new text-field%
@@ -413,22 +225,189 @@ ________________________________________________________________________________
           (update-composition-settings choice event moisture-num-octaves-text-field moisture-transformer moisture-noise-composition))]))
 
 
+;;;;;;;;;; Functions to create GUI Components ;;;;;;;;;;
 
-
-(define (create-distance-function-list-box label parent transformer)
+; Create a list-box with the distance function options that allows the user to click on an element to select which kind of distance function to apply
+(define (create-distance-function-list-box parent transformer)
   (new list-box%
-       [label label]
+       [label "Select Distance Function"]
        [choices distance-func-names]
        [parent parent]
        [callback
         (lambda (choice event)
           (set-distance-function choice event canvas transformer))]))
 
+; Create a list-box with the noise function options that allows the user to click on an element to select which kind of noise function to apply
+(define (create-modulation-function-list-box parent transformer type)
+  (new list-box%
+       [label "Select Modulation Function"] ; Set the label here
+       [choices modulation-func-names]
+       [parent parent]
+       [callback
+        (lambda (choice event)
+          (set-modulation-function choice event canvas transformer (get-modulation-func-table type)))]))
+
+;Creaters a slider for the distance function fudge setting
+(define (create-fudge-slider parent transformer)
+  (new slider%
+       [label "Redistribution Fudge Factor"]
+       [min-value 0]
+       [max-value 10]
+       [parent parent]
+       [callback
+        (lambda (entry event)
+          ((set-distance-function-parameter "fudge")
+           entry event transformer))]))
+
+;Creaters a slider for the distance function exponent setting
+(define (create-exponent-slider parent transformer)
+  (new slider%
+       [label "Redistribution Exponent"]
+       [min-value 0]
+       [max-value 10]
+       [parent parent]
+       [callback
+        (lambda (entry event)
+          ((set-distance-function-parameter "expt")
+           entry event transformer))]))
+
+;Creates a text field that doesn't have an event handler
+(define (create-data-textbox parent label)
+    (new text-field%
+       [label label ]
+       [parent parent]))
+
+
+
+(define (create-num-octaves-text-field parent)
+  (new text-field%
+       [label "Number of Octaves"]
+       [parent parent]
+       [enabled #t]))
+
+(define (create-composition-settings-button parent text-field transformer composer)
+    (new button%
+       [label "Update Composition Settings"]
+       [parent parent]
+       [callback
+        (lambda (choice event) 
+          (update-composition-settings choice event text-field transformer composer))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Moisture GUI Components
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define moisture-distance-function-list-box
-  (create-distance-function-list-box "Select moisture Distance Function" moisture-settings-frame moisture-transformer))
+  (create-distance-function-list-box moisture-settings-frame moisture-transformer))
+
+(define moisture-modulation-function-list-box (create-modulation-function-list-box moisture-settings-frame moisture-transformer "moisture"))
+
+
+(define moisture-redistribution-fudge-factor (create-fudge-slider moisture-settings-frame moisture-transformer))
+
+(define moisture-redistribution-exponent (create-exponent-slider moisture-settings-frame moisture-transformer))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;Elevation GUI Components
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
 
 (define elevation-distance-function-list-box
-  (create-distance-function-list-box "Select Elevation Distance Function" elevation-settings-frame elevation-transformer))
+  (create-distance-function-list-box elevation-distance-frame elevation-transformer))
+
+(define elevation-modulation-function-list-box (create-modulation-function-list-box elevation-modulation-function-frame elevation-transformer "elevation"))
+
+(define elevation-redistribution-fudge-factor (create-fudge-slider elevation-distance-frame elevation-transformer))
+
+(define elevation-redistribution-exponent (create-exponent-slider elevation-distance-frame elevation-transformer))
+
+
+(define elevation-num-octaves-text-box (create-num-octaves-text-field elevation-composition-settings-frames))
+
+(define elevation-composition-button (create-composition-settings-button
+                                      elevation-composition-settings-frames
+                                      elevation-num-octaves-text-box
+                                      elevation-transformer
+                                      elevation-noise-composition))
+
+
+;Elevation sine-settings GUI components
+(define sine-min-freq-textbox (create-data-textbox elevation-sine-settings-frames "Min Freq"))
+(define sine-max-freq-textbox (create-data-textbox elevation-sine-settings-frames "Max Freq"))
+(define sine-start-deg-freq-textbox (create-data-textbox elevation-sine-settings-frames "Start Deg"))
+(define sine-stop-deg-freq-textbox (create-data-textbox elevation-sine-settings-frames "End Deg"))
+
+
+(define elevation-menu-bar
+  (new menu-bar%
+       [parent elevation-setting-frames]
+       ))
+
+(define elevation-sine-menu
+  (new menu%
+       [label "Sine Modulation Settings"]
+       [parent elevation-menu-bar]
+       [demand-callback
+        (lambda (m)
+          (send elevation-sine-settings-frames show #t)
+          (send elevation-distance-frame show #t)
+          (send elevation-modulation-function-frame show #t)
+
+
+          )]
+       ))
+
+
+
+(define elevation-composition-menu
+  (new menu%
+       [label "Composition Settings"]
+       [parent elevation-menu-bar]
+       [demand-callback
+        (lambda (m)
+          (send elevation-composition-settings-frames show #t)
+          (send elevation-distance-frame show #t)
+          (send elevation-modulation-function-frame show #t)
+                
+
+                )]
+       ))
+
+
+(define elevation-distance-menu
+  (new menu%
+       [label "Distance Function Settings"]
+       [parent elevation-menu-bar]
+       [demand-callback
+        (lambda (m)
+          (send elevation-sine-settings-frames show #t)
+          (send elevation-distance-frame show #t)
+          (send elevation-modulation-function-frame show #t)
+                
+
+                )]
+       ))
+
+
+(define elevation-modulation-menu
+  (new menu%
+       [label "Modulation Function Settings"]
+       [parent elevation-menu-bar]
+       [demand-callback
+        (lambda (m) 
+            (send elevation-sine-settings-frames show #t)
+          (send elevation-distance-frame show #t)
+          (send elevation-modulation-function-frame show #t)
+
+
+          )]
+       ))
+
+
+
+
 
 
 

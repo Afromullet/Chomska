@@ -252,13 +252,16 @@ ________________________________________________________________________________
 ;A noise transformer is a thing that takes a noise value
 ;And produces a new noise value
 (struct noise-transformer
-  ( [distance-applier #:mutable]
+  (
+   [name]
+   [distance-applier #:mutable]
     [modulator #:mutable] ;todo rename the "Noise" struc tto modulator or something that makes sense giving this nbaming schem
     [redist-fudge #:mutable]
     [redist-expt #:mutable]))
 
-(define (create-noise-transformer distance-applier modulator redist-furge redist-exp)
-  (noise-transformer  distance-applier modulator redist-furge redist-exp))
+(define (create-noise-transformer name distance-applier modulator redist-furge redist-exp)
+  (noise-transformer name distance-applier modulator redist-furge redist-exp))
+
 
 
 
@@ -369,6 +372,9 @@ ________________________________________________________________________________
 ;Creates the world map using a noise function
 (define (initialize-world-map elevation-transformer moisture-transformer)
 
+     (print-transformer elevation-transformer)
+   (print-transformer moisture-transformer)
+
   (define world-map (make-vector MAP-WIDTH))
   (for ([x-cord (in-range MAP-WIDTH)])
     (define row (make-vector MAP-HEIGHT))
@@ -379,6 +385,22 @@ ________________________________________________________________________________
 
     (vector-set! world-map x-cord row))
   world-map)
+
+(define elevation-noise-composition (compose-noise 3))
+(define elevation-transformer (create-noise-transformer "elevation" no-distance-function elevation-noise-composition 1 1))
+
+;A noise transformer is a thing that takes a noise value
+
+
+(define (print-transformer transformer)
+  (displayln "____Printing Transformer_____")
+  (displayln (noise-transformer-name transformer))
+  (displayln (symbol->string (object-name (noise-transformer-distance-applier transformer))))
+  (displayln (symbol->string (object-name (noise-transformer-modulator transformer))))
+  (displayln (number->string (noise-transformer-redist-expt transformer)))
+  (displayln (number->string (noise-transformer-redist-fudge transformer))))
+
+          
 
 
 
