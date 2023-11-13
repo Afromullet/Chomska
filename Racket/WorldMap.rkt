@@ -81,19 +81,6 @@ ________________________________________________________________________________
     [else  (cons "tropicalrainforest" "tiles\\tree2.png")]))
 
 
-
-;Returns the png for a noise value
-(define (get-biome-data-no-moisture elevation-value moisture-value)
-  (cond
-    [(< elevation-value 0.1) (cons "ocean" "tiles\\water.png")]
-    [(< elevation-value 0.2) (cons "beach" "tiles\\beach.png")]
-    [(< elevation-value 0.3) (cons "forest" "tiles\\forest.png")]
-    [(< elevation-value 0.5) (cons "jungle" "tiles\\tree2.png")]
-    [(< elevation-value 0.7) (cons "taiga" "tiles\\shrubland.png")]
-    [(< elevation-value 0.9) (cons "desert" "tiles\\desert.png")]
-    [else  (cons "snowlands" "tiles\\bare.png")]))
-
-
 ;Creates a biome based on heeight
 (define (create-biome  elevation-value moisture-value)
   (let ([biome-data (get-biome-data elevation-value moisture-value)])  
@@ -262,9 +249,6 @@ ________________________________________________________________________________
 (define (create-noise-transformer name distance-applier modulator redist-furge redist-exp)
   (noise-transformer name distance-applier modulator redist-furge redist-exp))
 
-
-
-
 (define (get-distance-applier transformer) (noise-transformer-distance-applier transformer))
 (define (get-modulator transformer) (noise-transformer-modulator transformer))
 (define (get-redist-fudge transformer) (noise-transformer-redist-fudge transformer))
@@ -279,6 +263,7 @@ ________________________________________________________________________________
 
 ;A struct to store the modulator function so we can use a closure for variable args
 (struct modulator (function))
+
 (define (noise-at modulator x y)
   ((modulator-function modulator) x y))
 
@@ -287,21 +272,22 @@ ________________________________________________________________________________
 (define linear-stuff (linear-modulated-noise 1 1 2))
 (define sine-noise (sine-modulated-noise 0 360 1 100))
 
-;Distance functions
-(define (square-bump x y)
-  (- 1.0(* (- 1 (expt x 2)) (- 1 (expt y 2)))))
-
-(define (euclidian-squared x y)
-  (min 1 ( / (+ (expt x 2) (expt y 2)) (sqrt 2))))
-
-(define (distance-squared x y)
-  (- 1 (+ (expt x 2) (expt y 2))))
-
-
-
+;This is still here because of how we handle apply-reshape-func. Change later
 (define (no-distance-function x y) 1)
 
+;A function that uses matching to determine which distance to use
+;Uses a closure (lambda x y) so that we can select the function and then apply it layer when we're creating the tile
+(define (dist-func-selector kind)
+  (lambda (x y)
+    (match kind
+    
+    ["square-bump" (- 1.0(* (- 1 (expt x 2)) (- 1 (expt y 2))))]
+    ["euclidian-squared" (min 1 ( / (+ (expt x 2) (expt y 2)) (sqrt 2)))]
+    ["distance-squared" (- 1 (+ (expt x 2) (expt y 2)))]
+    ["no-distance-function" 1])))
 
+      
+   
 ;Applies the distance function
 ;Checks to see if the function passed as a parameter is no-distance-function. Then it returns the original noise value
 ;I don't really like doing a conditional that checks for a specific procedure name, but that works for now. 

@@ -32,20 +32,19 @@
 ;Selects the appropriate modulation function table based on the input
 ;Elevation and moisture keep track of their own functions, so we have two hash tables
 (define (get-modulation-func-table type)
+  (match type
+    ["elevation"
+     (hash "composition" elevation-noise-composition
+           "sinusoidal" sine-noise
+           "linear" linear-stuff)]
 
-  (define elevation-modulation-functions
-    (hash "composition" elevation-noise-composition
-          "sinusoidal" sine-noise
-          "linear" linear-stuff))
+    ["moisture"
+     (hash "composition" moisture-noise-composition
+           "sinusoidal" sine-noise
+           "linear" linear-stuff)]))
+ 
 
-  (define moisture-modulation-functions
-    (hash "composition" noise-composition
-          "sinusoidal" sine-noise
-          "linear" linear-stuff))
-  (cond
-    [ (eq? type "elevation") elevation-modulation-functions]
-    [ (eq? type "moisture") moisture-modulation-functions]
-    [else (void)]))
+
    
 
 ;;;;;;;;;;;Handles Distance Function Selection;;;;;;;;;;
@@ -55,11 +54,8 @@
 
 ;Lets us get the function with user selected choice
 (define (set-distance-function choice event canvas transformer)
-  (define distance-functions
-    (hash "square-bump" square-bump
-          "euclidian-squared" euclidian-squared
-          "no-distance-function" no-distance-function))
- (set-distance-applier transformer  (hash-ref distance-functions (send choice get-string-selection))))
+  (set-distance-applier transformer  (dist-func-selector(send choice get-string-selection))))
+ 
  
 ;Lets us get the function with user selected choice
 (define (set-modulation-function choice event canvas transformer modulation-function-table)
@@ -113,13 +109,13 @@
       
 (define canvas
   (new  my-canvas%
-                     [parent frame]
-                     [min-width (* MAP-WIDTH TILE-SIZE)]
-                     [min-height (* MAP-HEIGHT TILE-SIZE)]
-                     [stretchable-width #f]
-                     [stretchable-height #f]
-                     [paint-callback (lambda (canvas dc)
-                                       (draw-tile-map canvas (world-map) dc))]))
+        [parent frame]
+        [min-width (* MAP-WIDTH TILE-SIZE)]
+        [min-height (* MAP-HEIGHT TILE-SIZE)]
+        [stretchable-width #f]
+        [stretchable-height #f]
+        [paint-callback (lambda (canvas dc)
+                          (draw-tile-map canvas (world-map) dc))]))
 
 (define generate-new-map-button
   (new button%
@@ -273,7 +269,7 @@
 
 ;Creates a text field that doesn't have an event handler
 (define (create-data-textbox parent label)
-    (new text-field%
+  (new text-field%
        [label label ]
        [parent parent]))
 
@@ -286,7 +282,7 @@
        [enabled #t]))
 
 (define (create-composition-settings-button parent text-field transformer composer)
-    (new button%
+  (new button%
        [label "Update Composition Settings"]
        [parent parent]
        [callback
@@ -372,7 +368,7 @@
           (send elevation-modulation-function-frame show #t)
                 
 
-                )]
+          )]
        ))
 
 
@@ -387,7 +383,7 @@
           (send elevation-modulation-function-frame show #t)
                 
 
-                )]
+          )]
        ))
 
 
@@ -397,7 +393,7 @@
        [parent elevation-menu-bar]
        [demand-callback
         (lambda (m) 
-            (send elevation-sine-settings-frames show #t)
+          (send elevation-sine-settings-frames show #t)
           (send elevation-distance-frame show #t)
           (send elevation-modulation-function-frame show #t)
 
